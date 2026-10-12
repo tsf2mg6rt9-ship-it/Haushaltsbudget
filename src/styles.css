@@ -134,3 +134,9 @@ input[type=checkbox] { width: 22px; height: 22px; accent-color: var(--accent); f
 .chip { font: inherit; font-size: .85rem; cursor: pointer; min-height: 0; color: var(--text); }
 .chip.big { padding: 8px 14px; font-size: .92rem; min-height: 40px; }
 .chip.on-chip { background: var(--accent); color: var(--accent-text); border-color: transparent; }
+
+.banner.warn { background: rgba(192,57,43,.14); }
+.flagpill { background: rgba(192,57,43,.15); color: var(--neg); border-radius: 999px; padding: 0 8px; font-size: .75rem; font-weight: 600; }
+.flagtext { color: var(--neg); font-size: .88rem; padding: 2px 0; }
+.review { padding: 6px 0 10px; }
+.rulebox { background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 10px; margin-top: 10px; display: flex; flex-direction: column; gap: 8px; }

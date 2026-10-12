@@ -74,6 +74,7 @@ function cleanEntry(v: unknown): Entry | null {
     e.umbau = { trade: str(v.umbau.trade), invoiceNo: str(v.umbau.invoiceNo) || undefined, paid: v.umbau.paid !== false };
   }
   if (typeof v.note === 'string' && v.note) e.note = v.note;
+  if (v.checked === true) e.checked = true;
   if (Array.isArray(v.tags)) {
     const tags = normalizeTags(v.tags.filter((t): t is string => typeof t === 'string'));
     if (tags.length) e.tags = tags;

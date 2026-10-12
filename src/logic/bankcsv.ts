@@ -237,7 +237,7 @@ export interface BuildContext {
   owner?: PersonIdx;
 }
 
-const TRANSFER_RE = /(umbuchung|eigen(?:er)?\s?(?:über|ueber)trag|revolut|wise\b|(?:über|ueber)trag auf (?:eigenes )?konto)/i;
+export const TRANSFER_RE = /(umbuchung|eigen(?:er)?\s?(?:über|ueber)trag|revolut|wise\b|(?:über|ueber)trag auf (?:eigenes )?konto)/i;
 
 export interface BuildResult {
   candidates: Candidate[];

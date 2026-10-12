@@ -5,7 +5,7 @@ import { isIOS, isStandalone } from './files';
 import { backupReminderNeeded } from './logic/backup';
 import { ymOf } from './logic/dates';
 import type { Entry, Recurring } from './logic/types';
-import { deleteEntry, deleteRecurring, saveEntry, saveRecurring, saveSettings, useStore } from './store';
+import { deleteEntry, deleteRecurring, saveEntry, saveRecurring, saveSettings, upsertEntries, useStore } from './store';
 import { FixView } from './views/FixView';
 import { EntryForm, RecurringForm } from './views/forms';
 import { MonthView } from './views/MonthView';
@@ -13,6 +13,9 @@ import { OverviewView } from './views/OverviewView';
 import { TagsView } from './views/TagsView';
 import { Seg } from './views/ui';
 import { tagOverview } from './logic/tags';
+import { findFlags } from './logic/review';
+import { addRule, entriesToRecategorize } from './logic/rules';
+import { ReviewView } from './views/ReviewView';
 import { PlanView } from './views/PlanView';
 import { QuickView } from './views/QuickView';
 import { SettingsView } from './views/SettingsView';
@@ -37,6 +40,7 @@ export function App() {
   const [editor, setEditor] = useState<Editor>(null);
   const [monthMode, setMonthMode] = useState<'month' | 'overview' | 'tags'>('month');
   const [backupDismissed, setBackupDismissed] = useState(false);
+  const [reviewing, setReviewing] = useState(false);
 
   useEffect(() => { window.scrollTo(0, 0); }, [tab]);
 
@@ -50,6 +54,7 @@ export function App() {
   const editRec = (rec: Recurring) => setEditor({ kind: 'recurring', rec, isNew: !recurring.some((r) => r.id === rec.id) });
   const close = () => setEditor(null);
   const allTags = tagOverview(entries).map((t) => t.tag);
+  const flags = findFlags(entries, recurring, settings.importIgnoreTerms);
 
   return (
     <div class="app">
@@ -70,11 +75,17 @@ export function App() {
           </div>
         )}
 
+        {tab === 'month' && flags.size > 0 && (
+          <div class="banner warn" role="alert">
+            <span>⚠ {flags.size} Buchung{flags.size === 1 ? '' : 'en'} zu prüfen (möglicherweise doppelt gezählt).</span>
+            <button class="link" onClick={() => setReviewing(true)}>Ansehen</button>
+          </div>
+        )}
         {tab === 'month' && (
           <>
             <Seg value={monthMode} onChange={setMonthMode} options={[{ value: 'month', label: 'Monat' }, { value: 'overview', label: 'Überblick' }, { value: 'tags', label: 'Tags' }]} />
             <div style="height:12px" />
-            {monthMode === 'month' && <MonthView ym={ym} setYm={setYm} settings={settings} entries={entries} recurring={recurring} onEditEntry={editEntry} onEditRecurring={editRec} onNewSettlement={editEntry} />}
+            {monthMode === 'month' && <MonthView ym={ym} setYm={setYm} settings={settings} entries={entries} recurring={recurring} onEditEntry={editEntry} onEditRecurring={editRec} onNewSettlement={editEntry} flags={flags} />}
             {monthMode === 'overview' && <section><h1>Überblick</h1><OverviewView entries={entries} recurring={recurring} settings={settings} /></section>}
             {monthMode === 'tags' && <section><h1>Tags</h1><TagsView entries={entries} settings={settings} onEditEntry={editEntry} /></section>}
           </>
@@ -102,11 +113,21 @@ export function App() {
         {[...new Set(entries.map((e) => e.umbau?.trade).filter(Boolean))].map((t) => <option value={t} />)}
       </datalist>
 
+      {reviewing && <ReviewView entries={entries} flags={flags} settings={settings} onEdit={editEntry} onClose={() => setReviewing(false)} />}
       {editor?.kind === 'entry' && (
         <EntryForm
-          initial={editor.entry} settings={settings} allTags={allTags} umbauMode={!!editor.entry.umbau}
+          initial={editor.entry} settings={settings} allTags={allTags} entries={entries} umbauMode={!!editor.entry.umbau}
           onClose={close}
-          onSave={async (e) => { await saveEntry(e); if (!e.umbau) setYm(ymOf(e.date)); close(); }}
+          onSave={async (e, rule) => {
+            await saveEntry(e);
+            if (rule) {
+              await saveSettings({ categoryRules: addRule(settings.categoryRules, rule.match, rule.category) });
+              const others = entriesToRecategorize(entries.filter((x) => x.id !== e.id), [rule]);
+              if (others.length) await upsertEntries(others);
+            }
+            if (!e.umbau) setYm(ymOf(e.date));
+            close();
+          }}
           onDelete={editor.isNew ? undefined : async () => { await deleteEntry(editor.entry.id); close(); }}
         />
       )}

@@ -28,6 +28,7 @@ function demoEntries(): Entry[] {
   const trip: [string, string, number][] = [['Hotel Nizza', 'Freizeit', 420], ['Boulangerie', 'Lebensmittel', 18.6], ['Restaurant Vieux Port', 'Restaurant', 74], ['Mietwagen', 'Mobilität', 190], ['Souvenirs', 'Freizeit', 36]];
   trip.forEach(([d, c, amt], i) => out.push(e(`t-${i}`, 100 + i, d, c, amt, { tags: ['Urlaub', 'Frankreich'], paidBy: i % 2 === 0 ? 0 : 1 })));
   out.push(e('g-1', 55, 'Geschenk für Mama', 'Freizeit', 48, { tags: ['Geburtstag'], share1Pct: 100 }), e('g-2', 20, 'Blumen & Torte', 'Lebensmittel', 31.5, { tags: ['Geburtstag'] }));
+  out.push(e('f-1', 40, 'Lohn/Gehalt', 'Gehalt', 2400, { type: 'income', paidBy: 0 }));
   out.push(e('s-1', 8, 'Ausgleich', 'Ausgleich', 300, { type: 'settlement', paidBy: 1 }));
   out.push(umbau('1', 40, 'Architekt', 3200, true), umbau('2', 12, 'Statiker', 1450, true, { paidBy: 1 }),
     umbau('3', -30, 'Elektriker', 5800, false), umbau('4', -75, 'Fliesenleger', 7400, false, { paidBy: 1 }), umbau('5', -120, 'Maler', 4300, false));

@@ -4,14 +4,18 @@ import { todayISO } from '../defaults';
 import { cumulativeSettlement, summarizeMonth } from '../logic/calc';
 import { monthCSV } from '../logic/csv';
 import type { Entry, Line, Recurring, Settings } from '../logic/types';
+import type { Flag } from '../logic/review';
 import { saveFile } from '../files';
 import { newSettlement } from '../defaults';
 import { money, SettlementText, TagList } from './ui';
 
+const FLAG_LABEL = { gehalt: 'Gehalt doppelt?', fix: 'Fixposten doppelt?', dublette: 'Dublette?', partner: 'Ausgleich?', umbuchung: 'Umbuchung?' } as const;
+
 export function MonthView({
-  ym, setYm, settings, entries, recurring, onEditEntry, onEditRecurring, onNewSettlement,
+  ym, setYm, settings, entries, recurring, onEditEntry, onEditRecurring, onNewSettlement, flags,
 }: {
   onNewSettlement: (e: Entry) => void;
+  flags: Map<string, Flag[]>;
   ym: string;
   setYm: (ym: string) => void;
   settings: Settings;
@@ -110,6 +114,7 @@ export function MonthView({
                     {l.type === 'income' && ` · für ${names[l.paidBy]}`}
                     {l.umbau && !l.umbau.paid && ' · offen'}
                     <TagList tags={l.tags} />
+                    {l.source === 'entry' && (flags.get(l.id) ?? []).map((f) => <span class="flagpill" title={f.text}>⚠ {FLAG_LABEL[f.kind]}</span>)}
                   </span>
                 </span>
                 <span class={l.type === 'income' ? 'amt pos' : 'amt'}>{l.type === 'income' ? '+' : l.type === 'settlement' ? '⇄ ' : '−'}{money(l.amountCents)}</span>

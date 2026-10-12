@@ -1,4 +1,5 @@
-import { useState } from 'preact/hooks';
+import { useRef, useState } from 'preact/hooks';
+import { entriesToRecategorize, matchRule, suggestMatchTerm } from '../logic/rules';
 import { centsToInput, formatMoney, parseMoney, splitCents } from '../logic/money';
 import { isValidISO, isValidYM } from '../logic/dates';
 import { monthlyCents } from '../logic/calc';
@@ -30,13 +31,15 @@ function SharePicker({ pct, onChange, names }: { pct: number; onChange: (n: numb
 }
 
 export function EntryForm({
-  initial, settings, allTags, umbauMode, onSave, onDelete, onClose,
+  initial, settings, allTags, entries, umbauMode, onSave, onDelete, onClose,
 }: {
   initial: Entry;
   settings: Settings;
   allTags: string[];
+  entries: Entry[];
   umbauMode?: boolean;
-  onSave: (e: Entry) => void;
+  /** `rule`: Kategorie-Regel, die zusätzlich gespeichert und auf bestehende Buchungen angewendet werden soll */
+  onSave: (e: Entry, rule?: { match: string; category: string }) => void;
   onDelete?: () => void;
   onClose: () => void;
 }) {
@@ -46,6 +49,13 @@ export function EntryForm({
   const names = settings.names;
   const isUmbau = !!e.umbau;
   const isSettlement = e.type === 'settlement';
+  const isExisting = initial.description.trim() !== '';
+  const catTouched = useRef(false);
+  const [makeRule, setMakeRule] = useState(isExisting);
+  const [termInput, setTermInput] = useState<string | null>(null);
+  const term = (termInput ?? suggestMatchTerm(e.description)).trim();
+  const catChanged = !isUmbau && !isSettlement && e.category !== initial.category && e.description.trim() !== '' && term !== '';
+  const affected = catChanged ? entriesToRecategorize(entries.filter((x) => x.id !== e.id), [{ match: term, category: e.category }]).length : 0;
   const patch = (p: Partial<Entry>) => setE((x) => ({ ...x, ...p }));
   const cents = parseMoney(amount);
   const [s1, s2] = splitCents(cents ?? 0, e.share1Pct);
@@ -56,7 +66,7 @@ export function EntryForm({
     if (!isValidISO(e.date)) return setErr('Bitte ein gültiges Datum wählen.');
     const out: Entry = { ...e, amountCents: cents, description: e.description.trim() };
     if (!out.description && !out.umbau && !isSettlement) return setErr('Bitte eine Beschreibung eingeben.');
-    onSave(out);
+    onSave(out, catChanged && makeRule ? { match: term, category: e.category } : undefined);
   };
 
   return (
@@ -94,14 +104,28 @@ export function EntryForm({
           </>
         )}
         <Field label={isUmbau || isSettlement ? 'Beschreibung (optional)' : 'Beschreibung'}>
-          <input autocomplete="off" placeholder={e.type === 'income' ? 'z. B. Gehalt' : 'z. B. Billa'} value={e.description} onInput={(ev) => patch({ description: ev.currentTarget.value })} />
+          <input autocomplete="off" placeholder={e.type === 'income' ? 'z. B. Gehalt' : 'z. B. Billa'} value={e.description} onInput={(ev) => {
+            const description = ev.currentTarget.value;
+            const byRule = !isExisting && !catTouched.current ? matchRule(description.toLowerCase(), settings.categoryRules) : '';
+            patch(byRule ? { description, category: byRule } : { description });
+          }} />
         </Field>
         {!isUmbau && !isSettlement && (
           <Field label="Kategorie">
-            <select value={e.category} onChange={(ev) => patch({ category: ev.currentTarget.value })}>
+            <select value={e.category} onChange={(ev) => { catTouched.current = true; patch({ category: ev.currentTarget.value }); }}>
               {[...new Set([...settings.categories, e.category])].map((c) => <option>{c}</option>)}
             </select>
           </Field>
+        )}
+        {catChanged && (
+          <div class="rulebox">
+            <label class="check" style="margin-top:0">
+              <input type="checkbox" checked={makeRule} onChange={(ev) => setMakeRule(ev.currentTarget.checked)} />
+              Immer {e.category}, wenn die Beschreibung dies enthält:
+            </label>
+            <input value={termInput ?? term} onInput={(ev) => setTermInput(ev.currentTarget.value)} aria-label="Suchbegriff" />
+            <span class="hint">{makeRule ? `${affected} weitere bestehende Buchung${affected === 1 ? '' : 'en'} werden umkategorisiert, künftige Importe und Eingaben ebenfalls.` : 'Nur diese eine Buchung wird geändert.'}</span>
+          </div>
         )}
         {isSettlement ? (
           <>
