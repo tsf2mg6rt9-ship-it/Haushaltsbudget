@@ -117,3 +117,20 @@ describe('Export ohne Kopfzeile (George-Stil)', () => {
     expect(candidates[1]).toMatchObject({ type: 'income', amountCents: 35000 });
   });
 });
+
+describe('Gehalt trotz geänderter Höhe als Fixposten erkannt', () => {
+  const rows = parseCSV(['01.03.2026;Arbeitgeber GmbH;Lohn/Gehalt 03/2026;2.650,00', '01.03.2026;Max Muster;Rückerstattung Versicherung;120,00'].join('\n').replace(/^/, 'Buchungsdatum;Partnername;Verwendungszweck;Betrag\n'));
+  const map = detectMapping(rows[0]);
+  const gehalt = { id: 'g', label: 'Gehalt', category: 'Gehalt', type: 'income' as const, amountCents: 240000, rhythm: 'monthly' as const, share1Pct: 50, paidBy: 0 as const };
+  const base = { existing: [], categories: DEFAULT_CATEGORIES };
+  it('anderer Betrag, aber Gehalt für denselben Kontoinhaber -> Fixposten?', () => {
+    const { candidates } = buildCandidates(rows, 0, map, { ...base, recurring: [gehalt], owner: 0 });
+    expect(candidates[0]).toMatchObject({ category: 'Gehalt', fixMatch: true, selected: false });
+    expect(candidates[1].fixMatch).toBe(false);
+  });
+  it('Gehalt der anderen Person oder kein aktives Fix-Gehalt -> normal importierbar', () => {
+    expect(buildCandidates(rows, 0, map, { ...base, recurring: [gehalt], owner: 1 }).candidates[0].fixMatch).toBe(false);
+    expect(buildCandidates(rows, 0, map, { ...base, recurring: [{ ...gehalt, to: '2026-01' }], owner: 0 }).candidates[0].fixMatch).toBe(false);
+    expect(buildCandidates(rows, 0, map, { ...base, recurring: [], owner: 0 }).candidates[0].selected).toBe(true);
+  });
+});

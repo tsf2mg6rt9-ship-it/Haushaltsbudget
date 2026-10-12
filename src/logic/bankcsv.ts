@@ -286,9 +286,15 @@ export function buildCandidates(rows: string[][], headerRow: number, map: Mappin
     const ym = ymOf(date);
     const low0 = description.toLowerCase();
     const partner = (ctx.ignoreTerms ?? []).some((t) => t.trim() !== '' && low0.includes(t.trim().toLowerCase()));
-    const fixMatch = !partner && ctx.recurring.some((f) => f.type === type && isActive(f, ym) && (monthlyCents(f) === amountCents || f.amountCents === amountCents));
     let cat = guessCategory(description.toLowerCase(), ctx.categories, ctx.learned, ctx.rules);
     if (type === 'income' ? cat !== 'Gehalt' : cat === 'Gehalt') cat = '';
+    const owner = ctx.owner ?? 0;
+    // Passt zu einem Fixposten: gleicher Betrag – oder ein Gehalt, wenn für den Kontoinhaber in diesem Monat
+    // schon ein festes Gehalt hinterlegt ist (der Betrag kann sich z. B. durch eine Erhöhung geändert haben)
+    const fixMatch = !partner && ctx.recurring.some((f) => f.type === type && isActive(f, ym) && (
+      monthlyCents(f) === amountCents || f.amountCents === amountCents ||
+      (type === 'income' && cat === 'Gehalt' && f.category === 'Gehalt' && f.paidBy === owner)
+    ));
     const transfer = !partner && TRANSFER_RE.test(description);
     candidates.push({
       row: i + 1, date, description, amountCents, type,
