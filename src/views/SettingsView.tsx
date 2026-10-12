@@ -3,7 +3,9 @@ import { backupAgeDays, DEFAULT_SETTINGS, makeBackup, parseBackup } from '../log
 import { entriesCSV, recurringCSV } from '../logic/csv';
 import type { Entry, Recurring, Settings } from '../logic/types';
 import { isIOS, isStandalone, readFileText, saveFile } from '../files';
-import { replaceAll, saveSettings, upsertEntries } from '../store';
+import { deleteEntries, replaceAll, saveSettings, upsertEntries } from '../store';
+import { importBatches } from '../logic/bulk';
+import { formatDate } from '../logic/dates';
 import { colorForCategory, PALETTE } from '../logic/colors';
 import { CatDot } from './ui';
 import { addRule, entriesToRecategorize } from '../logic/rules';
@@ -177,6 +179,30 @@ export function SettingsView({ settings, entries, recurring }: { settings: Setti
         <div class="lbl">Kontoauszug importieren</div>
         <p class="muted">CSV aus dem Online-Banking einlesen – die Datei wird nur auf diesem Gerät verarbeitet. Duplikate und Fixposten werden erkannt.</p>
         <button onClick={() => setImporting(true)}>CSV-Kontoauszug importieren</button>
+        {importBatches(entries).length > 0 && (
+          <>
+            <div class="lbl" style="margin-top:14px">Bisherige Importe</div>
+            <ul class="list">
+              {importBatches(entries).map((b) => (
+                <li>
+                  <div class="item">
+                    <span class="main">
+                      <span class="title">{new Date(b.id).toLocaleString('de-AT', { dateStyle: 'short', timeStyle: 'short' })} · {b.count} Buchungen</span>
+                      <span class="sub">Zeitraum {formatDate(b.firstDate)} – {formatDate(b.lastDate)}</span>
+                    </span>
+                    <button class="danger" onClick={async () => {
+                      if (confirm(`Diesen Import mit ${b.count} Buchungen komplett rückgängig machen? Die Buchungen werden gelöscht.`)) {
+                        await deleteEntries(entries.filter((e) => e.importId === b.id).map((e) => e.id));
+                        flash('Import rückgängig gemacht.');
+                      }
+                    }}>Rückgängig</button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
+        <p class="hint">Importe von vor dem Update sind hier nicht aufgeführt. Die findest du im Tab „Monat“ ▸ „Buchungen“ mit dem Filter „Nur Importierte“.</p>
       </div>
 
       {hasNoData() && (

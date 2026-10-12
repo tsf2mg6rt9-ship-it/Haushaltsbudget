@@ -4,7 +4,7 @@ import { buildCandidates, detectHeaderRow, detectMapping, detectMappingFromData,
 import { formatDate } from '../logic/dates';
 import type { Entry, Recurring, Settings } from '../logic/types';
 import { readFileSmart } from '../files';
-import { saveEntries, saveSettings, uid, upsertEntries } from '../store';
+import { deleteEntries, saveEntries, saveSettings, uid, upsertEntries } from '../store';
 import { addRule, entriesToRecategorize, suggestMatchTerm } from '../logic/rules';
 import { normalizeTags, tagOverview } from '../logic/tags';
 import { CatDot, Field, Modal, Seg, TagInput, money } from './ui';
@@ -28,6 +28,7 @@ export function ImportView({ settings, entries, recurring, onClose }: { settings
   const [ruleMsg, setRuleMsg] = useState('');
   const [err, setErr] = useState('');
   const [imported, setImported] = useState(0);
+  const [importedIds, setImportedIds] = useState<string[]>([]);
   const learned = useMemo(() => learnedCategories(entries), [entries]);
 
   const first = rows[Math.max(headerRow, 0)] ?? [];
@@ -101,7 +102,7 @@ export function ImportView({ settings, entries, recurring, onClose }: { settings
         share1Pct: pct, paidBy: owner, note: 'Import Kontoauszug', importId, ...(tags.length ? { tags: normalizeTags(tags) } : {}),
       });
     await saveEntries(list);
-    setImported(list.length); setStep('done');
+    setImported(list.length); setImportedIds(list.map((x) => x.id)); setStep('done');
   };
 
   return (
@@ -218,7 +219,10 @@ export function ImportView({ settings, entries, recurring, onClose }: { settings
         <>
           <p class="big">{imported} Buchungen importiert.</p>
           <p class="muted">Du findest sie im Tab „Monat“ im jeweiligen Monat. Kategorien und Aufteilung kannst du dort einzeln anpassen. Mach danach am besten ein Backup.</p>
-          <div class="actions"><span class="spacer" /><button class="primary" onClick={onClose}>Fertig</button></div>
+          <div class="actions">
+            <button class="danger" onClick={async () => { if (confirm(`Diesen Import mit ${imported} Buchungen sofort rückgängig machen?`)) { await deleteEntries(importedIds); onClose(); } }}>Import rückgängig machen</button>
+            <span class="spacer" /><button class="primary" onClick={onClose}>Fertig</button>
+          </div>
         </>
       )}
     </Modal>
