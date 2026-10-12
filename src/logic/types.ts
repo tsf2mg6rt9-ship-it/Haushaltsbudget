@@ -55,6 +55,12 @@ export interface CategoryRule {
   category: string;
 }
 
+/** Als ausgeglichen markierter Monat. `balance1` = rechnerische Differenz zum Zeitpunkt der Markierung
+ *  (>0: Person 2 schuldete Person 1, <0 umgekehrt) – nur zur Dokumentation. */
+export interface ClosedMonth {
+  balance1: number;
+}
+
 export interface LoanSettings {
   /** Sollzins p. a. in Prozent */
   ratePct: number;
@@ -85,6 +91,8 @@ export interface Settings {
   categoryRules: CategoryRule[];
   /** Eigene Kategoriefarben (Hex), Rest ergibt sich automatisch */
   categoryColors: Record<string, string>;
+  /** Monate, in denen der Ausgleich pauschal als erledigt gilt (Zahlen bleiben unverändert) */
+  closedMonths: Record<YM, ClosedMonth>;
   /** Tags, die neue Buchungen automatisch bekommen (z. B. während eines Urlaubs) */
   activeTags: string[];
   /** Begriffe (z. B. Name des Partners), deren Kontoauszugszeilen beim Import als Ausgleich/Umbuchung gelten und abgewählt werden */

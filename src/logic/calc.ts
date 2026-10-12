@@ -1,6 +1,6 @@
 import { addMonths, monthDiff, ymOf } from './dates';
 import { splitCents } from './money';
-import type { Entry, Line, MonthSummary, Recurring, Rhythm, Settlement, YM } from './types';
+import type { ClosedMonth, Entry, Line, MonthSummary, Recurring, Rhythm, Settlement, YM } from './types';
 
 const DIVISOR: Record<Rhythm, number> = { monthly: 1, quarterly: 3, yearly: 12 };
 
@@ -112,18 +112,43 @@ export function summarizeMonth(ym: YM, entries: Entry[], recurring: Recurring[],
  * Offener Ausgleich über alle Monate bis einschließlich `upToYM` (Ausgleichszahlungen aus späteren Monaten
  * sind dabei noch nicht verrechnet). Nützlich, wenn z. B. ein Urlaub erst im Folgemonat zurückgezahlt wird.
  */
-export function cumulativeSettlement(entries: Entry[], recurring: Recurring[], upToYM: YM): Settlement {
+/** Rechnerische Differenz eines Monats (>0: Person 2 schuldet Person 1), inkl. bereits überwiesener Ausgleichszahlungen. */
+export function monthBalance1(s: MonthSummary): number {
+  return s.paid[0] - s.expenseShare[0] - s.settled[1] + s.settled[0];
+}
+
+const toSettlement = (balance1: number): Settlement =>
+  balance1 > 0 ? { from: 1, to: 0, amountCents: balance1 } : balance1 < 0 ? { from: 0, to: 1, amountCents: -balance1 } : { from: null, to: null, amountCents: 0 };
+
+/** Erster Monat mit Daten bis `upToYM` (Buchungen bzw. Beginn eines Fixpostens). */
+export function firstDataMonth(entries: Entry[], recurring: Recurring[], upToYM: YM): YM {
   const months = [
     ...entries.filter((e) => ymOf(e.date) <= upToYM).map((e) => ymOf(e.date)),
     ...recurring.filter((r) => r.from && r.from <= upToYM).map((r) => r.from as YM),
   ].sort();
-  const start = months[0] ?? upToYM;
+  return months[0] ?? upToYM;
+}
+
+/**
+ * Offener Ausgleich über alle Monate bis einschließlich `upToYM`. Als ausgeglichen markierte Monate (`closed`)
+ * zählen mit 0 – ihre Zahlen (Einnahmen, Ausgaben, Anteile) bleiben davon unberührt.
+ */
+export function cumulativeSettlement(entries: Entry[], recurring: Recurring[], upToYM: YM, closed: Record<YM, ClosedMonth> = {}): Settlement {
   let balance1 = 0;
-  for (let ym = start; monthDiff(ym, upToYM) >= 0; ym = addMonths(ym, 1)) {
-    const s = summarizeMonth(ym, entries, recurring);
-    balance1 += s.paid[0] - s.expenseShare[0] - s.settled[1] + s.settled[0];
+  for (let ym = firstDataMonth(entries, recurring, upToYM); monthDiff(ym, upToYM) >= 0; ym = addMonths(ym, 1)) {
+    if (closed[ym]) continue;
+    balance1 += monthBalance1(summarizeMonth(ym, entries, recurring));
   }
-  return balance1 > 0 ? { from: 1, to: 0, amountCents: balance1 } : balance1 < 0 ? { from: 0, to: 1, amountCents: -balance1 } : { from: null, to: null, amountCents: 0 };
+  return toSettlement(balance1);
+}
+
+/** Markiert alle noch offenen Monate von `fromYM` bis `toYM` als ausgeglichen und merkt sich die jeweilige Differenz. */
+export function closeMonths(entries: Entry[], recurring: Recurring[], fromYM: YM, toYM: YM, closed: Record<YM, ClosedMonth>): Record<YM, ClosedMonth> {
+  const out = { ...closed };
+  for (let ym = fromYM; monthDiff(ym, toYM) >= 0; ym = addMonths(ym, 1)) {
+    if (!out[ym]) out[ym] = { balance1: monthBalance1(summarizeMonth(ym, entries, recurring)) };
+  }
+  return out;
 }
 
 export { addMonths };

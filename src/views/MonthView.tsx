@@ -1,7 +1,8 @@
 import { useState } from 'preact/hooks';
 import { addMonths, formatDate, monthLabel, ymOf } from '../logic/dates';
 import { todayISO } from '../defaults';
-import { cumulativeSettlement, summarizeMonth } from '../logic/calc';
+import { closeMonths, cumulativeSettlement, firstDataMonth, monthBalance1, summarizeMonth } from '../logic/calc';
+import { saveSettings } from '../store';
 import { monthCSV } from '../logic/csv';
 import type { Entry, Line, Recurring, Settings } from '../logic/types';
 import type { Flag } from '../logic/review';
@@ -31,7 +32,9 @@ export function MonthView({
   const colors = useContext(ColorsCtx);
   const names = settings.names;
   const s = summarizeMonth(ym, entries, recurring, { includeUmbau });
-  const total = cumulativeSettlement(entries, recurring, ym);
+  const closed = settings.closedMonths;
+  const isClosed = !!closed[ym];
+  const total = cumulativeSettlement(entries, recurring, ym, closed);
   const showTotal = total.amountCents !== s.settlement.amountCents || total.from !== s.settlement.from;
   const shown = catFilter ? s.lines.filter((l) => l.category === catFilter) : s.lines;
   const maxCat = Math.max(1, ...s.byCategory.map((c) => c.cents));
@@ -58,19 +61,47 @@ export function MonthView({
 
       <div class="card highlight">
         <div class="lbl">Ausgleich</div>
-        <p class="big"><SettlementText s={s.settlement} names={names} /></p>
-        {s.settled[0] + s.settled[1] > 0 && <p class="hint">Bereits überwiesen in diesem Monat: {money(s.settled[0] + s.settled[1])}.</p>}
+        {isClosed ? (
+          <>
+            <p class="big">✓ Als ausgeglichen markiert</p>
+            {(s.settlement.amountCents > 0 || closed[ym].balance1 !== 0) && (
+              <p class="hint">
+                Rechnerisch wäre: {s.settlement.from === null ? 'ausgeglichen' : <SettlementText s={s.settlement} names={names} />}
+                {monthBalance1(summarizeMonth(ym, entries, recurring)) !== closed[ym].balance1 && ' (bei der Markierung war die Differenz eine andere)'}.
+              </p>
+            )}
+            <p class="hint">Einnahmen, Ausgaben und Anteile bleiben unverändert – nur der offene Ausgleich gilt als erledigt und wird nicht weitergerechnet.</p>
+          </>
+        ) : (
+          <>
+            <p class="big"><SettlementText s={s.settlement} names={names} /></p>
+            {s.settled[0] + s.settled[1] > 0 && <p class="hint">Bereits überwiesen in diesem Monat: {money(s.settled[0] + s.settled[1])}.</p>}
+          </>
+        )}
         {showTotal && (
-          <p class="hint">Alle Monate bis Ende {monthLabel(ym)} zusammen: {total.from === null || total.to === null ? 'ausgeglichen' : <><strong>{names[total.from]}</strong> schuldet <strong>{names[total.to]}</strong> noch {money(total.amountCents)}</>}.</p>
+          <p class="hint">Alle offenen Monate bis Ende {monthLabel(ym)} zusammen: {total.from === null || total.to === null ? 'ausgeglichen' : <><strong>{names[total.from]}</strong> schuldet <strong>{names[total.to]}</strong> noch {money(total.amountCents)}</>}.</p>
         )}
         <div class="actions" style="margin-top:8px">
+          {isClosed ? (
+            <button onClick={() => { const { [ym]: _drop, ...rest } = closed; void _drop; saveSettings({ closedMonths: rest }); }}>Markierung aufheben</button>
+          ) : (
+            <>
+              <button onClick={() => saveSettings({ closedMonths: closeMonths(entries, recurring, ym, ym, closed) })}>✓ Monat als ausgeglichen markieren</button>
+              <button onClick={() => {
+                const from = firstDataMonth(entries, recurring, ym);
+                const next = closeMonths(entries, recurring, from, ym, closed);
+                const added = Object.keys(next).length - Object.keys(closed).length;
+                if (added > 0 && confirm(`${added} noch offene${added === 1 ? 'n Monat' : ' Monate'} bis ${monthLabel(ym)} als ausgeglichen markieren? Die Zahlen bleiben unverändert, nur der offene Ausgleich gilt als erledigt.`)) saveSettings({ closedMonths: next });
+              }}>Alle Monate bis hier</button>
+            </>
+          )}
           <button onClick={() => onNewSettlement(newSettlement(settings, {
             date: ym === ymOf(new Date()) ? todayISO() : `${ym}-28`,
             paidBy: (total.from ?? s.settlement.from ?? 1) as 0 | 1,
             amountCents: total.amountCents || s.settlement.amountCents,
-          }))}>✓ Ausgleichszahlung erfassen</button>
+          }))}>Überweisung erfassen</button>
         </div>
-        <p class="hint">Eine Überweisung zwischen euch zählt nie als Einnahme oder Ausgabe.</p>
+        <p class="hint">Überweisungen zwischen euch zählen nie als Einnahme oder Ausgabe. „Ausgeglichen markieren“ ist für pauschalen Ausgleich (z. B. bar), ohne die Differenz einzeln zu buchen.</p>
       </div>
 
       <div class="card">
