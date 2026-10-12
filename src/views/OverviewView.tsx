@@ -11,17 +11,21 @@ export function OverviewView({ entries, recurring, settings }: { entries: Entry[
   const [range, setRange] = useState<Range>('all');
   const [includeUmbau, setIncludeUmbau] = useState(false);
   const [excluded, setExcluded] = useState<string[]>([]);
+  const [who, setWho] = useState<'all' | '0' | '1'>('all');
   const allTags = tagOverview(entries);
   const names = settings.names;
   const now = ymOf(new Date());
-  const o = buildOverview(entries, recurring, { endYM: defaultEndYM(entries, now), months: range === 'all' ? 'all' : +range, includeUmbau, excludeTags: excluded });
+  const o = buildOverview(entries, recurring, { endYM: defaultEndYM(entries, now), months: range === 'all' ? 'all' : +range, includeUmbau, excludeTags: excluded, person: who === 'all' ? null : (+who as 0 | 1) });
   const maxCat = Math.max(1, ...o.byCategory.map((c) => c.total));
   const hasUmbau = entries.some((e) => e.umbau);
 
   return (
     <>
       <div class="card">
-        <div class="lbl">Zeitraum</div>
+        <div class="lbl">Wessen Zahlen?</div>
+        <Seg value={who} onChange={setWho} options={[{ value: 'all', label: 'Gemeinsam' }, { value: '0', label: names[0] }, { value: '1', label: names[1] }]} />
+        <p class="hint">{who === 'all' ? 'Alle Einnahmen und Ausgaben beider.' : `Nur ${names[+who]}s Einnahmen und ${names[+who]}s Anteil an den Ausgaben (laut Aufteilung bei jeder Buchung).`}</p>
+        <div class="lbl" style="margin-top:12px">Zeitraum</div>
         <Seg value={range} onChange={setRange} options={[{ value: '3', label: '3 Mon.' }, { value: '6', label: '6 Mon.' }, { value: '12', label: '12 Mon.' }, { value: 'all', label: 'Alles' }]} />
         {!o.empty && <p class="hint">Durchschnitt über {o.n} Monat{o.n === 1 ? '' : 'e'} ({monthLabel(o.startYM)} bis {monthLabel(o.endYM)}). Der laufende Monat zählt nur mit, wenn es noch keine älteren Buchungen gibt.</p>}
         {allTags.length > 0 && (

@@ -1,6 +1,7 @@
 import { summarizeMonth, monthlyCents, isActive } from './calc';
 import { addMonths, monthDiff, ymOf } from './dates';
-import type { Entry, Recurring, YM } from './types';
+import { splitCents } from './money';
+import type { Entry, PersonIdx, Recurring, YM } from './types';
 
 export interface OverviewOptions {
   endYM: YM;
@@ -9,6 +10,8 @@ export interface OverviewOptions {
   includeUmbau: boolean;
   /** Buchungen mit einem dieser Tags werden herausgerechnet (z. B. "Einmalig") */
   excludeTags?: string[];
+  /** null/undefined = gemeinsam; sonst nur Einnahmen und Ausgabenanteile dieser Person */
+  person?: PersonIdx | null;
 }
 
 export interface CategoryRow {
@@ -58,6 +61,8 @@ const avg = (total: number, n: number) => (n > 0 ? Math.round(total / n) : 0);
 
 export function buildOverview(allEntries: Entry[], recurring: Recurring[], opts: OverviewOptions): Overview {
   const { endYM, includeUmbau } = opts;
+  const person = opts.person ?? null;
+  const share = (cents: number, pct: number) => (person === null ? cents : splitCents(cents, pct)[person]);
   const ex = (opts.excludeTags ?? []).map((t) => t.toLowerCase());
   const entries = ex.length ? allEntries.filter((e) => !(e.tags ?? []).some((t) => ex.includes(t.toLowerCase()))) : allEntries;
   const firstEntry = entries.length ? entries.map((e) => ymOf(e.date)).sort()[0] : null;
@@ -80,27 +85,29 @@ export function buildOverview(allEntries: Entry[], recurring: Recurring[], opts:
   for (let i = 0; i < n; i++) {
     const ym = addMonths(start, i);
     const s = summarizeMonth(ym, entries, recurring, { includeUmbau });
-    income += s.totalIncome;
+    income += person === null ? s.totalIncome : s.income[person];
     incP[0] += s.income[0]; incP[1] += s.income[1];
     expP[0] += s.expenseShare[0]; expP[1] += s.expenseShare[1];
     for (const l of s.lines) {
       if (l.type !== 'expense') continue;
+      const amt = share(l.amountCents, l.share1Pct);
       const c = cat.get(l.category) ?? { fixed: 0, variable: 0 };
-      if (l.source === 'recurring') { c.fixed += l.amountCents; fixedExp += l.amountCents; } else { c.variable += l.amountCents; varExp += l.amountCents; }
+      if (l.source === 'recurring') { c.fixed += amt; fixedExp += amt; } else { c.variable += amt; varExp += amt; }
       cat.set(l.category, c);
     }
   }
   // Umbau separat ausweisen (auch wenn er aus der Auswertung ausgeschlossen ist)
   for (let i = 0; i < n; i++) {
     const ym = addMonths(start, i);
-    umbauTotal += entries.filter((e) => e.umbau && e.type === 'expense' && ymOf(e.date) === ym).reduce((a, e) => a + e.amountCents, 0);
+    umbauTotal += entries.filter((e) => e.umbau && e.type === 'expense' && ymOf(e.date) === ym).reduce((a, e) => a + share(e.amountCents, e.share1Pct), 0);
   }
 
   const fixedItems: FixedRow[] = [];
   for (const r of recurring) {
     let active = 0;
     for (let i = 0; i < n; i++) if (isActive(r, addMonths(start, i))) active++;
-    if (active > 0) fixedItems.push({ id: r.id, label: r.label, category: r.category, type: r.type, monthly: monthlyCents(r), activeMonths: active });
+    const mine = r.type === 'expense' ? share(monthlyCents(r), r.share1Pct) : person === null || r.paidBy === person ? monthlyCents(r) : 0;
+    if (active > 0 && mine > 0) fixedItems.push({ id: r.id, label: r.label, category: r.category, type: r.type, monthly: mine, activeMonths: active });
   }
   fixedItems.sort((a, b) => b.monthly * b.activeMonths - a.monthly * a.activeMonths);
 
@@ -114,6 +121,7 @@ export function buildOverview(allEntries: Entry[], recurring: Recurring[], opts:
     netAvg: avg(income - expTotal, n),
     umbauTotal,
     byCategory: [...cat.entries()]
+      .filter(([, v]) => v.fixed + v.variable > 0)
       .map(([category, v]) => ({ category, total: v.fixed + v.variable, avg: avg(v.fixed + v.variable, n), fixedTotal: v.fixed, variableTotal: v.variable }))
       .sort((a, b) => b.total - a.total),
     fixedItems,

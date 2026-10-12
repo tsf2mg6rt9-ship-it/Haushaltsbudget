@@ -100,3 +100,28 @@ describe('Tags', () => {
     expect(r.ok && r.data.settings.activeTags).toEqual(['Urlaub']);
   });
 });
+
+describe('Überblick nach Person', () => {
+  const es = [entry({ date: '2026-03-05', amountCents: 10000, share1Pct: 70 }), entry({ date: '2026-03-06', amountCents: 5000, share1Pct: 0, category: 'Restaurant', paidBy: 1 })];
+  const recs = [rec({}), rec({ type: 'income', label: 'Gehalt A', amountCents: 250000, paidBy: 0 }), rec({ type: 'income', label: 'Gehalt B', amountCents: 300000, paidBy: 1 })];
+  const o = (person: 0 | 1 | null) => buildOverview(es, recs, { endYM: '2026-03', months: 'all', includeUmbau: true, person });
+  it('Person 1: eigene Einnahmen und Ausgabenanteile', () => {
+    const a = o(0);
+    expect(a.income.total).toBe(250000);
+    expect(a.fixedExpense.total).toBe(40000);
+    expect(a.variableExpense.total).toBe(7000);
+    expect(a.byCategory.find((c) => c.category === 'Restaurant')).toBeUndefined();
+    expect(a.fixedItems.map((f) => f.label).sort()).toEqual(['Gehalt A', 'Miete']);
+    expect(a.fixedItems.find((f) => f.label === 'Miete')!.monthly).toBe(40000);
+  });
+  it('Person 2: Rest der Anteile', () => {
+    const b = o(1);
+    expect(b.income.total).toBe(300000);
+    expect(b.variableExpense.total).toBe(3000 + 5000);
+    expect(b.byCategory.find((c) => c.category === 'Restaurant')!.total).toBe(5000);
+  });
+  it('beide Personen ergeben zusammen gemeinsam', () => {
+    expect(o(0).expense.total + o(1).expense.total).toBe(o(null).expense.total);
+    expect(o(0).income.total + o(1).income.total).toBe(o(null).income.total);
+  });
+});
