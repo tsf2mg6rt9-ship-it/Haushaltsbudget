@@ -1,7 +1,7 @@
 import { isValidISO, ymOf } from './dates';
 import { monthlyCents, isActive } from './calc';
 import { guessCategory } from './quick';
-import type { Entry, EntryType, ISODate, Recurring } from './types';
+import type { CategoryRule, Entry, EntryType, ISODate, PersonIdx, Recurring } from './types';
 
 /** Trennzeichen erraten (Semikolon, Komma, Tab). */
 export function detectDelimiter(text: string): string {
@@ -218,8 +218,10 @@ export interface Candidate {
   duplicate: boolean;
   /** Passt zu einem Fixposten (würde doppelt zählen) */
   fixMatch: boolean;
-  /** Sieht nach Umbuchung/Ausgleich aus (eigenes Konto, Revolut, Partner) */
+  /** Sieht nach Umbuchung auf ein eigenes Konto aus (Revolut, "Umbuchung") */
   transfer: boolean;
+  /** Zahlung von/an den Partner (laut Suchbegriffen) – wird als Ausgleich importiert */
+  partner: boolean;
   selected: boolean;
 }
 
@@ -228,8 +230,11 @@ export interface BuildContext {
   recurring: Recurring[];
   categories: string[];
   learned?: Record<string, string>;
-  /** Zeilen, deren Text einen dieser Begriffe enthält, gelten als Umbuchung/Ausgleich */
+  /** Zeilen, deren Text einen dieser Begriffe enthält, gelten als Zahlung von/an den Partner (Ausgleich) */
   ignoreTerms?: string[];
+  rules?: CategoryRule[];
+  /** Kontoinhaber (für den Abgleich vorhandener Ausgleichszahlungen) */
+  owner?: PersonIdx;
 }
 
 const TRANSFER_RE = /(umbuchung|eigen(?:er)?\s?(?:über|ueber)trag|revolut|wise\b|(?:über|ueber)trag auf (?:eigenes )?konto)/i;
@@ -246,7 +251,9 @@ function cleanText(s: string): string {
 export function buildCandidates(rows: string[][], headerRow: number, map: Mapping, ctx: BuildContext): BuildResult {
   const counts = new Map<string, number>();
   for (const e of ctx.existing) {
-    const k = `${e.date}|${e.type}|${e.amountCents}`;
+    // Ausgleich: hat der Kontoinhaber überwiesen, ist es auf seinem Konto eine Ausgabe, sonst eine Einnahme
+    const t = e.type === 'settlement' ? (e.paidBy === (ctx.owner ?? 0) ? 'expense' : 'income') : e.type;
+    const k = `${e.date}|${t}|${e.amountCents}`;
     counts.set(k, (counts.get(k) ?? 0) + 1);
   }
   const candidates: Candidate[] = [];
@@ -277,15 +284,16 @@ export function buildCandidates(rows: string[][], headerRow: number, map: Mappin
     const duplicate = left > 0;
     if (duplicate) counts.set(key, left - 1);
     const ym = ymOf(date);
-    const fixMatch = ctx.recurring.some((f) => f.type === type && isActive(f, ym) && (monthlyCents(f) === amountCents || f.amountCents === amountCents));
-    let cat = guessCategory(description.toLowerCase(), ctx.categories, ctx.learned);
+    const low0 = description.toLowerCase();
+    const partner = (ctx.ignoreTerms ?? []).some((t) => t.trim() !== '' && low0.includes(t.trim().toLowerCase()));
+    const fixMatch = !partner && ctx.recurring.some((f) => f.type === type && isActive(f, ym) && (monthlyCents(f) === amountCents || f.amountCents === amountCents));
+    let cat = guessCategory(description.toLowerCase(), ctx.categories, ctx.learned, ctx.rules);
     if (type === 'income' ? cat !== 'Gehalt' : cat === 'Gehalt') cat = '';
-    const low = description.toLowerCase();
-    const transfer = TRANSFER_RE.test(description) || (ctx.ignoreTerms ?? []).some((t) => t.trim() !== '' && low.includes(t.trim().toLowerCase()));
+    const transfer = !partner && TRANSFER_RE.test(description);
     candidates.push({
       row: i + 1, date, description, amountCents, type,
-      category: cat || (type === 'income' ? 'Sonstige Einnahmen' : 'Sonstiges'),
-      duplicate, fixMatch, transfer, selected: !duplicate && !fixMatch && !transfer,
+      category: partner ? 'Ausgleich' : cat || (type === 'income' ? 'Sonstige Einnahmen' : 'Sonstiges'),
+      duplicate, fixMatch, transfer, partner, selected: !duplicate && !fixMatch && !transfer,
     });
   }
   return { candidates, skipped };

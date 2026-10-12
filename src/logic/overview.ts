@@ -7,6 +7,8 @@ export interface OverviewOptions {
   /** Anzahl Monate rückwärts ab endYM oder 'all' */
   months: number | 'all';
   includeUmbau: boolean;
+  /** Buchungen mit einem dieser Tags werden herausgerechnet (z. B. "Einmalig") */
+  excludeTags?: string[];
 }
 
 export interface CategoryRow {
@@ -54,8 +56,10 @@ export function defaultEndYM(entries: Entry[], nowYM: YM): YM {
 
 const avg = (total: number, n: number) => (n > 0 ? Math.round(total / n) : 0);
 
-export function buildOverview(entries: Entry[], recurring: Recurring[], opts: OverviewOptions): Overview {
+export function buildOverview(allEntries: Entry[], recurring: Recurring[], opts: OverviewOptions): Overview {
   const { endYM, includeUmbau } = opts;
+  const ex = (opts.excludeTags ?? []).map((t) => t.toLowerCase());
+  const entries = ex.length ? allEntries.filter((e) => !(e.tags ?? []).some((t) => ex.includes(t.toLowerCase()))) : allEntries;
   const firstEntry = entries.length ? entries.map((e) => ymOf(e.date)).sort()[0] : null;
   let start = opts.months === 'all' ? firstEntry ?? endYM : addMonths(endYM, -(opts.months - 1));
   if (firstEntry && monthDiff(start, firstEntry) > 0) start = firstEntry;

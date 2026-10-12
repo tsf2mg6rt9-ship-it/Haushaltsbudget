@@ -20,7 +20,7 @@ export function QuickView({
   const [saved, setSaved] = useState('');
   const names = settings.names;
   const learned = useMemo(() => learnedCategories(entries), [entries]);
-  const parsed = text.trim() ? parseQuickEntry(text, { today: todayISO(), names, categories: settings.categories, learned }) : null;
+  const parsed = text.trim() ? parseQuickEntry(text, { today: todayISO(), names, categories: settings.categories, learned, rules: settings.categoryRules }) : null;
 
   const toEntry = (): Entry | null => {
     if (!parsed || parsed.amountCents === null) return null;
@@ -97,7 +97,7 @@ export function QuickView({
                   <span class="title">{e.description || e.umbau?.trade || '–'}</span>
                   <span class="sub">{formatDate(e.date)} · {e.category} · {names[e.paidBy]}<TagList tags={e.tags} /></span>
                 </span>
-                <span class={e.type === 'income' ? 'amt pos' : 'amt'}>{e.type === 'income' ? '+' : '−'}{money(e.amountCents)}</span>
+                <span class={e.type === 'income' ? 'amt pos' : 'amt'}>{e.type === 'income' ? '+' : e.type === 'settlement' ? '⇄ ' : '−'}{money(e.amountCents)}</span>
               </button>
             </li>
           ))}

@@ -42,7 +42,7 @@ export function tagOverview(entries: Entry[]): TagInfo[] {
       const cur = map.get(key) ?? { tag: t, count: 0, expenseCents: 0, incomeCents: 0, forms: new Map() };
       cur.count++;
       if (e.type === 'expense') cur.expenseCents += e.amountCents;
-      else cur.incomeCents += e.amountCents;
+      else if (e.type === 'income') cur.incomeCents += e.amountCents;
       cur.forms.set(t, (cur.forms.get(t) ?? 0) + 1);
       map.set(key, cur);
     }
@@ -81,7 +81,7 @@ export function summarizeEntries(entries: Entry[]): TagSummary {
       share[0] += a;
       share[1] += b;
       cat.set(e.category, (cat.get(e.category) ?? 0) + e.amountCents);
-    } else income += e.amountCents;
+    } else if (e.type === 'income') income += e.amountCents;
   }
   const dates = entries.map((e) => e.date).sort();
   return {

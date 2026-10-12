@@ -5,6 +5,7 @@ import { formatDate } from '../logic/dates';
 import type { Entry, Recurring, Settings } from '../logic/types';
 import { readFileSmart } from '../files';
 import { saveEntries, saveSettings, uid } from '../store';
+import { addRule, suggestMatchTerm } from '../logic/rules';
 import { normalizeTags, tagOverview } from '../logic/tags';
 import { Field, Modal, Seg, TagInput, money } from './ui';
 
@@ -23,6 +24,8 @@ export function ImportView({ settings, entries, recurring, onClose }: { settings
   const [skipped, setSkipped] = useState(0);
   const [ignore, setIgnore] = useState(settings.importIgnoreTerms.join(', '));
   const [tags, setTags] = useState<string[]>([]);
+  const [touched, setTouched] = useState<Record<number, boolean>>({});
+  const [ruleMsg, setRuleMsg] = useState('');
   const [err, setErr] = useState('');
   const [imported, setImported] = useState(0);
   const learned = useMemo(() => learnedCategories(entries), [entries]);
@@ -60,19 +63,39 @@ export function ImportView({ settings, entries, recurring, onClose }: { settings
   const toReview = () => {
     const terms = ignore.split(',').map((t) => t.trim()).filter(Boolean);
     saveSettings({ importIgnoreTerms: terms });
-    const res = buildCandidates(rows, headerRow, map, { existing: entries, recurring, categories: settings.categories, learned, ignoreTerms: terms });
+    const res = buildCandidates(rows, headerRow, map, { existing: entries, recurring, categories: settings.categories, learned, ignoreTerms: terms, rules: settings.categoryRules, owner });
     if (res.candidates.length === 0) return setErr('Es wurden keine gültigen Zeilen erkannt. Prüfe die Spaltenzuordnung.');
     setErr(''); setCands(res.candidates); setSkipped(res.skipped); setStep('review');
   };
 
-  const patch = (i: number, p: Partial<Candidate>) => setCands((cs) => cs.map((c, j) => (j === i ? { ...c, ...p } : c)));
+  const patch = (i: number, p: Partial<Candidate>) => {
+    setCands((cs) => cs.map((c, j) => (j === i ? { ...c, ...p } : c)));
+    if (p.category !== undefined) { setTouched((t) => ({ ...t, [i]: true })); setRuleMsg(''); }
+  };
+  const makeRule = async (i: number) => {
+    const c = cands[i];
+    const term = suggestMatchTerm(c.description);
+    await saveSettings({ categoryRules: addRule(settings.categoryRules, term, c.category) });
+    const low = term.toLowerCase();
+    let n = 0;
+    setCands((cs) => cs.map((x) => (!x.partner && x.description.toLowerCase().includes(low) ? (n++, { ...x, category: c.category }) : x)));
+    setTouched((t) => ({ ...t, [i]: false }));
+    setRuleMsg(`Regel gespeichert: „${term}“ → ${c.category} (gilt jetzt für ${n} Zeilen in dieser Liste und künftig immer).`);
+  };
   const chosen = cands.filter((c) => c.selected);
 
   const doImport = async () => {
-    const list: Entry[] = chosen.map((c) => ({
-      id: uid(), date: c.date, description: c.description, category: c.category, amountCents: c.amountCents, type: c.type,
-      share1Pct: share, paidBy: owner, note: 'Import Kontoauszug', ...(tags.length ? { tags: normalizeTags(tags) } : {}),
-    }));
+    const partnerIdx = owner === 0 ? 1 : 0;
+    const list: Entry[] = chosen.map((c) => c.partner
+      ? {
+        // Zahlung von/an den Partner = Ausgleich (weder Einnahme noch Ausgabe)
+        id: uid(), date: c.date, description: c.description, category: 'Ausgleich', amountCents: c.amountCents, type: 'settlement' as const,
+        share1Pct: 50, paidBy: c.type === 'income' ? (partnerIdx as 0 | 1) : owner, note: 'Import Kontoauszug',
+      }
+      : {
+        id: uid(), date: c.date, description: c.description, category: c.category, amountCents: c.amountCents, type: c.type,
+        share1Pct: share, paidBy: owner, note: 'Import Kontoauszug', ...(tags.length ? { tags: normalizeTags(tags) } : {}),
+      });
     await saveEntries(list);
     setImported(list.length); setStep('done');
   };
@@ -118,7 +141,7 @@ export function ImportView({ settings, entries, recurring, onClose }: { settings
             <span class="lbl">Tags für alle importierten Buchungen (optional)</span>
             <TagInput value={tags} onChange={setTags} suggestions={tagOverview(entries).map((t) => t.tag)} />
           </div>
-          <Field label="Ausgleich/Umbuchungen überspringen (optional)" hint="Namen oder Begriffe, durch Komma getrennt – z. B. der Name deines Partners im Kontoauszug. Überweisungen von/an diese Personen sind dann nur Ausgleich und zählen weder als Einnahme noch als Ausgabe. Umbuchungen und Revolut erkennt die App selbst.">
+          <Field label="Zahlungen vom/an deinen Partner (optional)" hint="Namen oder Begriffe, durch Komma getrennt – z. B. der Name deines Partners im Kontoauszug. Solche Überweisungen werden als Ausgleichszahlung importiert: Sie zählen weder als Einnahme noch als Ausgabe, sondern verringern den offenen Ausgleich. Umbuchungen auf eigene Konten (Revolut) erkennt die App selbst und wählt sie ab.">
             <input value={ignore} placeholder="z. B. Müller Anna" onInput={(e) => setIgnore(e.currentTarget.value)} />
           </Field>
 
@@ -143,12 +166,13 @@ export function ImportView({ settings, entries, recurring, onClose }: { settings
 
       {step === 'review' && (
         <>
-          <p class="muted">{chosen.length} von {cands.length} Zeilen ausgewählt{skipped ? ` · ${skipped} nicht lesbare Zeilen übersprungen` : ''}. Duplikate, Fixposten und Umbuchungen sind abgewählt.</p>
+          <p class="muted">{chosen.length} von {cands.length} Zeilen ausgewählt{skipped ? ` · ${skipped} nicht lesbare Zeilen übersprungen` : ''}. Duplikate, Fixposten und Umbuchungen auf eigene Konten sind abgewählt.</p>
           <div class="actions" style="margin-top:0">
             <button onClick={() => setCands((cs) => cs.map((c) => ({ ...c, selected: !c.duplicate && !c.fixMatch && !c.transfer })))}>Empfohlen</button>
             <button onClick={() => setCands((cs) => cs.map((c) => ({ ...c, selected: true })))}>Alle</button>
             <button onClick={() => setCands((cs) => cs.map((c) => ({ ...c, selected: false })))}>Keine</button>
           </div>
+          {ruleMsg && <div class="toast" role="status">{ruleMsg}</div>}
           <ul class="list import-list">
             {cands.map((c, i) => (
               <li key={c.row} class={c.selected ? '' : 'off'}>
@@ -160,14 +184,20 @@ export function ImportView({ settings, entries, recurring, onClose }: { settings
                       <span class="sub">{formatDate(c.date)}
                         {c.duplicate && <span class="tag warn">schon vorhanden</span>}
                         {c.fixMatch && <span class="tag warn">Fixposten?</span>}
-                        {c.transfer && <span class="tag warn">Umbuchung/Ausgleich?</span>}
+                        {c.transfer && <span class="tag warn">Umbuchung?</span>}
+                        {c.partner && <span class="tag ok">Ausgleich Partner</span>}
                       </span>
                     </span>
                     <span class={c.type === 'income' ? 'amt pos' : 'amt'}>{c.type === 'income' ? '+' : '−'}{money(c.amountCents)}</span>
                   </label>
-                  <select value={c.category} onChange={(e) => patch(i, { category: e.currentTarget.value })} aria-label="Kategorie">
-                    {[...new Set([...settings.categories, c.category])].map((k) => <option>{k}</option>)}
-                  </select>
+                  {!c.partner && (
+                    <select value={c.category} onChange={(e) => patch(i, { category: e.currentTarget.value })} aria-label="Kategorie">
+                      {[...new Set([...settings.categories, c.category])].map((k) => <option>{k}</option>)}
+                    </select>
+                  )}
+                  {touched[i] && !c.partner && (
+                    <button class="link" onClick={() => makeRule(i)}>Immer „{suggestMatchTerm(c.description)}“ → {c.category}</button>
+                  )}
                 </div>
               </li>
             ))}

@@ -11,6 +11,7 @@ export function toCSV(rows: (string | number)[][]): string {
   return '﻿' + rows.map((r) => r.map(cell).join(';')).join('\r\n') + '\r\n';
 }
 
+const TYPE_LABEL = { expense: 'Ausgabe', income: 'Einnahme', settlement: 'Ausgleich' } as const;
 const eurNum = (c: number) => (c / 100).toFixed(2).replace('.', ',');
 
 export function entriesCSV(entries: Entry[], settings: Settings): string {
@@ -22,7 +23,7 @@ export function entriesCSV(entries: Entry[], settings: Settings): string {
   for (const e of [...entries].sort((a, b) => (a.date < b.date ? -1 : 1))) {
     const [s1, s2] = splitCents(e.amountCents, e.share1Pct);
     rows.push([
-      e.date, e.type === 'expense' ? 'Ausgabe' : 'Einnahme', e.description, e.category, eurNum(e.amountCents),
+      e.date, TYPE_LABEL[e.type], e.description, e.category, eurNum(e.amountCents),
       e.type === 'expense' ? String(e.share1Pct).replace('.', ',') : '',
       e.type === 'expense' ? eurNum(s1) : '', e.type === 'expense' ? eurNum(s2) : '',
       settings.names[e.paidBy], e.umbau?.trade ?? '', e.umbau?.invoiceNo ?? '',
@@ -52,7 +53,7 @@ export function monthCSV(ym: string, lines: Line[], settings: Settings): string 
   for (const l of lines) {
     const [s1, s2] = splitCents(l.amountCents, l.share1Pct);
     rows.push([
-      ym, l.source === 'recurring' ? 'Fix' : 'Buchung', l.date ?? '', l.type === 'expense' ? 'Ausgabe' : 'Einnahme', l.description,
+      ym, l.source === 'recurring' ? 'Fix' : 'Buchung', l.date ?? '', TYPE_LABEL[l.type], l.description,
       l.category, eurNum(l.amountCents), l.type === 'expense' ? eurNum(s1) : '', l.type === 'expense' ? eurNum(s2) : '', settings.names[l.paidBy],
     ]);
   }

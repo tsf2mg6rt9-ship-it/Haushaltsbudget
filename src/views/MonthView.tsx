@@ -1,14 +1,17 @@
 import { useState } from 'preact/hooks';
-import { addMonths, formatDate, monthLabel } from '../logic/dates';
-import { summarizeMonth } from '../logic/calc';
+import { addMonths, formatDate, monthLabel, ymOf } from '../logic/dates';
+import { todayISO } from '../defaults';
+import { cumulativeSettlement, summarizeMonth } from '../logic/calc';
 import { monthCSV } from '../logic/csv';
 import type { Entry, Line, Recurring, Settings } from '../logic/types';
 import { saveFile } from '../files';
+import { newSettlement } from '../defaults';
 import { money, SettlementText, TagList } from './ui';
 
 export function MonthView({
-  ym, setYm, settings, entries, recurring, onEditEntry, onEditRecurring,
+  ym, setYm, settings, entries, recurring, onEditEntry, onEditRecurring, onNewSettlement,
 }: {
+  onNewSettlement: (e: Entry) => void;
   ym: string;
   setYm: (ym: string) => void;
   settings: Settings;
@@ -20,6 +23,8 @@ export function MonthView({
   const [includeUmbau, setIncludeUmbau] = useState(true);
   const names = settings.names;
   const s = summarizeMonth(ym, entries, recurring, { includeUmbau });
+  const total = cumulativeSettlement(entries, recurring, ym);
+  const showTotal = total.amountCents !== s.settlement.amountCents || total.from !== s.settlement.from;
   const maxCat = Math.max(1, ...s.byCategory.map((c) => c.cents));
   const hasUmbau = entries.some((e) => e.umbau);
 
@@ -45,7 +50,18 @@ export function MonthView({
       <div class="card highlight">
         <div class="lbl">Ausgleich</div>
         <p class="big"><SettlementText s={s.settlement} names={names} /></p>
-        <p class="hint">Reine Ausgleichszahlung – zählt nicht als Einnahme.</p>
+        {s.settled[0] + s.settled[1] > 0 && <p class="hint">Bereits überwiesen in diesem Monat: {money(s.settled[0] + s.settled[1])}.</p>}
+        {showTotal && (
+          <p class="hint">Alle Monate bis Ende {monthLabel(ym)} zusammen: {total.from === null || total.to === null ? 'ausgeglichen' : <><strong>{names[total.from]}</strong> schuldet <strong>{names[total.to]}</strong> noch {money(total.amountCents)}</>}.</p>
+        )}
+        <div class="actions" style="margin-top:8px">
+          <button onClick={() => onNewSettlement(newSettlement(settings, {
+            date: ym === ymOf(new Date()) ? todayISO() : `${ym}-28`,
+            paidBy: (total.from ?? s.settlement.from ?? 1) as 0 | 1,
+            amountCents: total.amountCents || s.settlement.amountCents,
+          }))}>✓ Ausgleichszahlung erfassen</button>
+        </div>
+        <p class="hint">Eine Überweisung zwischen euch zählt nie als Einnahme oder Ausgabe.</p>
       </div>
 
       <div class="card">
@@ -87,7 +103,7 @@ export function MonthView({
             <li key={l.key}>
               <button class="item" onClick={() => open(l)}>
                 <span class="main">
-                  <span class="title">{l.description || l.umbau?.trade || '–'}</span>
+                  <span class="title">{l.type === 'settlement' ? `Ausgleich: ${names[l.paidBy]} → ${names[l.paidBy === 0 ? 1 : 0]}` : l.description || l.umbau?.trade || '–'}</span>
                   <span class="sub">
                     {l.source === 'recurring' ? 'Fix' : l.date ? formatDate(l.date) : ''} · {l.category}
                     {l.type === 'expense' && ` · ${names[l.paidBy]} zahlte · ${l.share1Pct === 50 ? '50/50' : `${l.share1Pct}/${100 - l.share1Pct}`}`}
@@ -96,7 +112,7 @@ export function MonthView({
                     <TagList tags={l.tags} />
                   </span>
                 </span>
-                <span class={l.type === 'income' ? 'amt pos' : 'amt'}>{l.type === 'income' ? '+' : '−'}{money(l.amountCents)}</span>
+                <span class={l.type === 'income' ? 'amt pos' : 'amt'}>{l.type === 'income' ? '+' : l.type === 'settlement' ? '⇄ ' : '−'}{money(l.amountCents)}</span>
               </button>
             </li>
           ))}

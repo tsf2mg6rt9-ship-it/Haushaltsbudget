@@ -3,7 +3,8 @@ import { backupAgeDays, DEFAULT_SETTINGS, makeBackup, parseBackup } from '../log
 import { entriesCSV, recurringCSV } from '../logic/csv';
 import type { Entry, Recurring, Settings } from '../logic/types';
 import { isIOS, isStandalone, readFileText, saveFile } from '../files';
-import { replaceAll, saveSettings } from '../store';
+import { replaceAll, saveSettings, upsertEntries } from '../store';
+import { addRule, entriesToRecategorize } from '../logic/rules';
 import { hasNoData, loadDemo } from '../demo';
 import { ImportView } from './ImportView';
 
@@ -15,6 +16,8 @@ export function SettingsView({ settings, entries, recurring }: { settings: Setti
   const [cats, setCats] = useState(settings.categories.join('\n'));
   const [msg, setMsg] = useState('');
   const [importing, setImporting] = useState(false);
+  const [ruleMatch, setRuleMatch] = useState('');
+  const [ruleCat, setRuleCat] = useState(settings.categories[0] ?? 'Sonstiges');
   const [persisted, setPersisted] = useState<boolean | null>(null);
   const age = backupAgeDays(settings.lastBackupAt);
 
@@ -79,6 +82,38 @@ export function SettingsView({ settings, entries, recurring }: { settings: Setti
           <textarea rows={8} value={cats} onInput={(e) => setCats(e.currentTarget.value)} />
         </label>
         <button class="primary" onClick={saveBasics}>Speichern</button>
+      </div>
+
+      <div class="card">
+        <div class="lbl">Händler-Regeln für Kategorien</div>
+        <p class="muted">Enthält eine Beschreibung den Suchbegriff, bekommt sie immer diese Kategorie – in der Schnelleingabe und beim Import. Regeln haben Vorrang vor allem anderen; bei mehreren Treffern gilt der längste Begriff.</p>
+        {settings.categoryRules.length === 0 && <p class="hint">Noch keine Regeln. Beim Import legst du Regeln direkt in der Prüfliste an, wenn du eine Kategorie änderst.</p>}
+        <ul class="list">
+          {settings.categoryRules.map((r) => (
+            <li>
+              <div class="item">
+                <span class="main"><span class="title">„{r.match}“</span><span class="sub">→ {r.category}</span></span>
+                <button class="ghost" aria-label={`Regel ${r.match} löschen`} onClick={() => saveSettings({ categoryRules: settings.categoryRules.filter((x) => x !== r) })}>✕</button>
+              </div>
+            </li>
+          ))}
+        </ul>
+        <div class="two">
+          <label class="field"><span class="lbl">Begriff</span><input value={ruleMatch} placeholder="z. B. Hotel Hirschen" onInput={(e) => setRuleMatch(e.currentTarget.value)} /></label>
+          <label class="field"><span class="lbl">Kategorie</span>
+            <select value={ruleCat} onChange={(e) => setRuleCat(e.currentTarget.value)}>{settings.categories.map((c) => <option>{c}</option>)}</select>
+          </label>
+        </div>
+        <div class="actions">
+          <button class="primary" disabled={!ruleMatch.trim()} onClick={async () => { await saveSettings({ categoryRules: addRule(settings.categoryRules, ruleMatch, ruleCat) }); setRuleMatch(''); flash('Regel gespeichert.'); }}>Regel hinzufügen</button>
+          {settings.categoryRules.length > 0 && (
+            <button onClick={async () => {
+              const changed = entriesToRecategorize(entries, settings.categoryRules);
+              if (changed.length === 0) return flash('Alle bestehenden Buchungen passen bereits zu den Regeln.');
+              if (confirm(`${changed.length} bestehende Buchungen nach den Regeln umkategorisieren?`)) { await upsertEntries(changed); flash(`${changed.length} Buchungen umkategorisiert.`); }
+            }}>Auf bestehende Buchungen anwenden</button>
+          )}
+        </div>
       </div>
 
       <div class="card">

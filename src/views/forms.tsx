@@ -45,6 +45,7 @@ export function EntryForm({
   const [err, setErr] = useState('');
   const names = settings.names;
   const isUmbau = !!e.umbau;
+  const isSettlement = e.type === 'settlement';
   const patch = (p: Partial<Entry>) => setE((x) => ({ ...x, ...p }));
   const cents = parseMoney(amount);
   const [s1, s2] = splitCents(cents ?? 0, e.share1Pct);
@@ -54,15 +55,22 @@ export function EntryForm({
     if (cents === null || cents <= 0) return setErr('Bitte einen gültigen Betrag eingeben (z. B. 54,20).');
     if (!isValidISO(e.date)) return setErr('Bitte ein gültiges Datum wählen.');
     const out: Entry = { ...e, amountCents: cents, description: e.description.trim() };
-    if (!out.description && !out.umbau) return setErr('Bitte eine Beschreibung eingeben.');
+    if (!out.description && !out.umbau && !isSettlement) return setErr('Bitte eine Beschreibung eingeben.');
     onSave(out);
   };
 
   return (
-    <Modal title={initial.description || initial.amountCents ? (umbauMode ? 'Rechnung bearbeiten' : 'Buchung bearbeiten') : umbauMode ? 'Neue Umbau-Rechnung' : 'Neue Buchung'} onClose={onClose}>
+    <Modal title={initial.type === 'settlement' ? 'Ausgleichszahlung' : initial.description || initial.amountCents ? (umbauMode ? 'Rechnung bearbeiten' : 'Buchung bearbeiten') : umbauMode ? 'Neue Umbau-Rechnung' : 'Neue Buchung'} onClose={onClose}>
       <form onSubmit={submit}>
         {!umbauMode && (
-          <Seg value={e.type} onChange={(type) => patch({ type })} options={[{ value: 'expense', label: 'Ausgabe' }, { value: 'income', label: 'Einnahme' }]} />
+          <Seg
+            value={e.type}
+            onChange={(type) => patch({ type, category: type === 'settlement' ? 'Ausgleich' : e.category === 'Ausgleich' ? settings.categories[0] ?? 'Sonstiges' : e.category, description: type === 'settlement' && !e.description ? 'Ausgleich' : e.description })}
+            options={[{ value: 'expense', label: 'Ausgabe' }, { value: 'income', label: 'Einnahme' }, { value: 'settlement', label: 'Ausgleich' }]}
+          />
+        )}
+        {isSettlement && (
+          <p class="hint">Eine Überweisung zwischen euch beiden, z. B. wenn dein Freund dir seinen Anteil zurückzahlt. Sie zählt weder als Einnahme noch als Ausgabe, sondern verringert nur den offenen Ausgleich.</p>
         )}
         <Field label="Betrag (€)">
           <input inputMode="decimal" autocomplete="off" placeholder="0,00" value={amount} onInput={(ev) => setAmount(ev.currentTarget.value)} />
@@ -85,17 +93,23 @@ export function EntryForm({
             />
           </>
         )}
-        <Field label={isUmbau ? 'Beschreibung (optional)' : 'Beschreibung'}>
+        <Field label={isUmbau || isSettlement ? 'Beschreibung (optional)' : 'Beschreibung'}>
           <input autocomplete="off" placeholder={e.type === 'income' ? 'z. B. Gehalt' : 'z. B. Billa'} value={e.description} onInput={(ev) => patch({ description: ev.currentTarget.value })} />
         </Field>
-        {!isUmbau && (
+        {!isUmbau && !isSettlement && (
           <Field label="Kategorie">
             <select value={e.category} onChange={(ev) => patch({ category: ev.currentTarget.value })}>
               {[...new Set([...settings.categories, e.category])].map((c) => <option>{c}</option>)}
             </select>
           </Field>
         )}
-        {e.type === 'expense' ? (
+        {isSettlement ? (
+          <>
+            <div class="lbl" style="margin-top:12px">Überwiesen von</div>
+            <Seg value={e.paidBy} onChange={(paidBy) => patch({ paidBy })} options={[{ value: 0, label: names[0] }, { value: 1, label: names[1] }]} />
+            <div class="hint">{names[e.paidBy]} überweist {cents ? formatMoney(cents) + ' ' : ''}an {names[e.paidBy === 0 ? 1 : 0]}.</div>
+          </>
+        ) : e.type === 'expense' ? (
           <>
             <div class="lbl" style="margin-top:12px">Aufteilung</div>
             <SharePicker pct={e.share1Pct} onChange={(share1Pct) => patch({ share1Pct })} names={names} />

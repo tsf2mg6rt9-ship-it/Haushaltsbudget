@@ -1,7 +1,8 @@
 import { addDays, fromISO, toISO } from './dates';
 import { parseMoney } from './money';
+import { matchRule } from './rules';
 import { normalizeTags } from './tags';
-import type { EntryType, ISODate, PersonIdx } from './types';
+import type { CategoryRule, EntryType, ISODate, PersonIdx } from './types';
 
 export interface QuickContext {
   today: ISODate;
@@ -9,6 +10,8 @@ export interface QuickContext {
   categories: string[];
   /** Gelernte Zuordnung Händler (klein) -> Kategorie aus früheren Buchungen */
   learned?: Record<string, string>;
+  /** Feste Händler-Regeln (haben Vorrang) */
+  rules?: CategoryRule[];
 }
 
 export interface QuickResult {
@@ -63,7 +66,9 @@ function take(text: string, re: RegExp): { m: RegExpMatchArray | null; rest: str
 }
 
 /** Kategorie aus gelernten Händlern bzw. Schlagwörtern erraten; '' wenn nichts passt. `lower` muss klein geschrieben sein. */
-export function guessCategory(lower: string, categories: string[], learned?: Record<string, string>): string {
+export function guessCategory(lower: string, categories: string[], learned?: Record<string, string>, rules?: CategoryRule[]): string {
+  const byRule = matchRule(lower, rules);
+  if (byRule) return byRule;
   if (learned) {
     for (const [merchant, cat] of Object.entries(learned)) {
       if (merchant && lower.includes(merchant)) return cat;
@@ -215,7 +220,7 @@ export function parseQuickEntry(input: string, ctx: QuickContext): QuickResult {
   const description = capitalize(words.join(' ').trim());
 
   const lower = description.toLowerCase();
-  let category = guessCategory(lower, ctx.categories, ctx.learned);
+  let category = guessCategory(lower, ctx.categories, ctx.learned, ctx.rules);
   rec.category = category !== '';
   if (!category) category = type === 'income' ? 'Sonstige Einnahmen' : 'Sonstiges';
 

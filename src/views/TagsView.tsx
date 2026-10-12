@@ -68,7 +68,7 @@ export function TagsView({ entries, settings, onEditEntry }: { entries: Entry[];
                       <span class="title">{e.description || e.umbau?.trade || '–'}</span>
                       <span class="sub">{formatDate(e.date)} · {e.category} · {names[e.paidBy]}<TagList tags={(e.tags ?? []).filter((t) => !sel.some((s) => s.toLowerCase() === t.toLowerCase()))} /></span>
                     </span>
-                    <span class={e.type === 'income' ? 'amt pos' : 'amt'}>{e.type === 'income' ? '+' : '−'}{money(e.amountCents)}</span>
+                    <span class={e.type === 'income' ? 'amt pos' : 'amt'}>{e.type === 'income' ? '+' : e.type === 'settlement' ? '⇄ ' : '−'}{money(e.amountCents)}</span>
                   </button>
                 </li>
               ))}

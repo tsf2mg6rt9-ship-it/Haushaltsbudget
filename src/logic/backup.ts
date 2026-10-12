@@ -1,6 +1,6 @@
 import { isValidISO, isValidYM } from './dates';
 import { normalizeTags } from './tags';
-import type { BackupFile, Entry, LoanSettings, Recurring, Settings } from './types';
+import type { BackupFile, CategoryRule, Entry, LoanSettings, Recurring, Settings } from './types';
 
 export const DEFAULT_CATEGORIES = [
   'Wohnen', 'Lebensmittel', 'Restaurant', 'Mobilität', 'Versicherung', 'Abos', 'Freizeit', 'Gesundheit',
@@ -17,6 +17,7 @@ export const DEFAULT_SETTINGS: Settings = {
   variableEstimateCents: null,
   loan: DEFAULT_LOAN,
   importIgnoreTerms: [],
+  categoryRules: [],
   activeTags: [],
   lastBackupAt: null,
   installHintDismissed: false,
@@ -50,6 +51,11 @@ function cleanLoan(v: unknown): LoanSettings {
   };
 }
 
+function cleanRules(v: unknown): CategoryRule[] {
+  if (!Array.isArray(v)) return [];
+  return v.flatMap((r) => (isObj(r) && typeof r.match === 'string' && r.match.trim() && typeof r.category === 'string' && r.category.trim() ? [{ match: r.match.trim(), category: r.category.trim() }] : []));
+}
+
 function cleanEntry(v: unknown): Entry | null {
   if (!isObj(v)) return null;
   const amountCents = int(v.amountCents);
@@ -60,7 +66,7 @@ function cleanEntry(v: unknown): Entry | null {
     id, date, amountCents,
     description: str(v.description),
     category: str(v.category, 'Sonstiges'),
-    type: v.type === 'income' ? 'income' : 'expense',
+    type: v.type === 'income' ? 'income' : v.type === 'settlement' ? 'settlement' : 'expense',
     share1Pct: pct(v.share1Pct),
     paidBy: person(v.paidBy),
   };
@@ -120,6 +126,7 @@ export function parseBackup(text: string): ParseResult {
     variableEstimateCents: int(s.variableEstimateCents),
     loan: cleanLoan(s.loan),
     activeTags: Array.isArray(s.activeTags) ? normalizeTags(s.activeTags.filter((t): t is string => typeof t === 'string')) : [],
+    categoryRules: cleanRules(s.categoryRules),
     importIgnoreTerms: Array.isArray(s.importIgnoreTerms) ? s.importIgnoreTerms.filter((t): t is string => typeof t === 'string' && t.trim() !== '') : [],
     lastBackupAt: typeof s.lastBackupAt === 'string' ? s.lastBackupAt : null,
     installHintDismissed: s.installHintDismissed === true,

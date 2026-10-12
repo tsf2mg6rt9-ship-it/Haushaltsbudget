@@ -53,8 +53,9 @@ export function entryLine(e: Entry): Line {
  * Ausgleich: Person A hat `paid[A]` vorgestreckt, trägt aber nur `expenseShare[A]`.
  * Differenz = was die andere Person überweisen muss. Einnahmen fließen NICHT ein.
  */
-export function computeSettlement(paid: [number, number], expenseShare: [number, number]): Settlement {
-  const balance1 = paid[0] - expenseShare[0]; // >0: Person 2 schuldet Person 1
+export function computeSettlement(paid: [number, number], expenseShare: [number, number], sent: [number, number] = [0, 0]): Settlement {
+  // >0: Person 2 schuldet Person 1. Bereits überwiesene Ausgleichszahlungen verringern die Schuld.
+  const balance1 = paid[0] - expenseShare[0] - sent[1] + sent[0];
   if (balance1 > 0) return { from: 1, to: 0, amountCents: balance1 };
   if (balance1 < 0) return { from: 0, to: 1, amountCents: -balance1 };
   return { from: null, to: null, amountCents: 0 };
@@ -64,9 +65,12 @@ export function summarizeLines(ym: YM, lines: Line[]): MonthSummary {
   const income: [number, number] = [0, 0];
   const expenseShare: [number, number] = [0, 0];
   const paid: [number, number] = [0, 0];
+  const settled: [number, number] = [0, 0];
   const cat = new Map<string, number>();
   for (const l of lines) {
-    if (l.type === 'income') {
+    if (l.type === 'settlement') {
+      settled[l.paidBy] += l.amountCents;
+    } else if (l.type === 'income') {
       income[l.paidBy] += l.amountCents;
     } else {
       const [s1, s2] = splitCents(l.amountCents, l.share1Pct);
@@ -82,10 +86,11 @@ export function summarizeLines(ym: YM, lines: Line[]): MonthSummary {
     income,
     expenseShare,
     paid,
+    settled,
     totalExpense: expenseShare[0] + expenseShare[1],
     totalIncome: income[0] + income[1],
     net: [income[0] - expenseShare[0], income[1] - expenseShare[1]],
-    settlement: computeSettlement(paid, expenseShare),
+    settlement: computeSettlement(paid, expenseShare, settled),
     byCategory: [...cat.entries()].map(([category, cents]) => ({ category, cents })).sort((a, b) => b.cents - a.cents),
   };
 }
@@ -101,6 +106,24 @@ export function summarizeMonth(ym: YM, entries: Entry[], recurring: Recurring[],
     .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0))
     .map(entryLine);
   return summarizeLines(ym, [...recurringLines(recurring, ym), ...entryLines]);
+}
+
+/**
+ * Offener Ausgleich über alle Monate bis einschließlich `upToYM` (Ausgleichszahlungen aus späteren Monaten
+ * sind dabei noch nicht verrechnet). Nützlich, wenn z. B. ein Urlaub erst im Folgemonat zurückgezahlt wird.
+ */
+export function cumulativeSettlement(entries: Entry[], recurring: Recurring[], upToYM: YM): Settlement {
+  const months = [
+    ...entries.filter((e) => ymOf(e.date) <= upToYM).map((e) => ymOf(e.date)),
+    ...recurring.filter((r) => r.from && r.from <= upToYM).map((r) => r.from as YM),
+  ].sort();
+  const start = months[0] ?? upToYM;
+  let balance1 = 0;
+  for (let ym = start; monthDiff(ym, upToYM) >= 0; ym = addMonths(ym, 1)) {
+    const s = summarizeMonth(ym, entries, recurring);
+    balance1 += s.paid[0] - s.expenseShare[0] - s.settled[1] + s.settled[0];
+  }
+  return balance1 > 0 ? { from: 1, to: 0, amountCents: balance1 } : balance1 < 0 ? { from: 0, to: 1, amountCents: -balance1 } : { from: null, to: null, amountCents: 0 };
 }
 
 export { addMonths };

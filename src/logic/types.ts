@@ -1,6 +1,7 @@
 /** Alle Beträge sind ganzzahlige Cent-Werte, um Rundungsfehler zu vermeiden. */
 export type PersonIdx = 0 | 1;
-export type EntryType = 'expense' | 'income';
+/** settlement = Ausgleichszahlung zwischen den Personen (weder Einnahme noch Ausgabe) */
+export type EntryType = 'expense' | 'income' | 'settlement';
 export type Rhythm = 'monthly' | 'quarterly' | 'yearly';
 /** Monat im Format "YYYY-MM" */
 export type YM = string;
@@ -22,9 +23,9 @@ export interface Entry {
   category: string;
   amountCents: number;
   type: EntryType;
-  /** Anteil Person 1 in Prozent (0–100); Rest trägt Person 2. Bei Einnahmen ohne Bedeutung. */
+  /** Anteil Person 1 in Prozent (0–100); Rest trägt Person 2. Bei Einnahmen und Ausgleich ohne Bedeutung. */
   share1Pct: number;
-  /** Bei Ausgaben: wer hat bezahlt. Bei Einnahmen: wer hat das Geld erhalten. */
+  /** Ausgabe: wer hat bezahlt. Einnahme: wer hat das Geld erhalten. Ausgleich: wer hat überwiesen (an die andere Person). */
   paidBy: PersonIdx;
   umbau?: UmbauInfo;
   note?: string;
@@ -36,7 +37,7 @@ export interface Recurring {
   id: string;
   label: string;
   category: string;
-  type: EntryType;
+  type: 'expense' | 'income';
   /** Betrag pro Zahlung (je nach Rhythmus). */
   amountCents: number;
   rhythm: Rhythm;
@@ -44,6 +45,12 @@ export interface Recurring {
   paidBy: PersonIdx;
   from?: YM;
   to?: YM;
+}
+
+/** Händler-Regel: Enthält die Beschreibung `match`, gilt immer `category`. */
+export interface CategoryRule {
+  match: string;
+  category: string;
 }
 
 export interface LoanSettings {
@@ -73,6 +80,7 @@ export interface Settings {
   /** Manuelle Schätzung variabler Ausgaben pro Monat für die Planung; null = Durchschnitt. */
   variableEstimateCents: number | null;
   loan: LoanSettings;
+  categoryRules: CategoryRule[];
   /** Tags, die neue Buchungen automatisch bekommen (z. B. während eines Urlaubs) */
   activeTags: string[];
   /** Begriffe (z. B. Name des Partners), deren Kontoauszugszeilen beim Import als Ausgleich/Umbuchung gelten und abgewählt werden */
@@ -120,6 +128,8 @@ export interface MonthSummary {
   expenseShare: [number, number];
   /** Was jede Person tatsächlich vorgestreckt hat */
   paid: [number, number];
+  /** Ausgleichszahlungen, die jede Person an die andere überwiesen hat */
+  settled: [number, number];
   totalExpense: number;
   totalIncome: number;
   /** Einnahmen minus eigene Ausgabenanteile, vor Ausgleichszahlung */

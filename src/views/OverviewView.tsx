@@ -2,6 +2,7 @@ import { useState } from 'preact/hooks';
 import { monthLabel, ymOf } from '../logic/dates';
 import { buildOverview, defaultEndYM } from '../logic/overview';
 import type { Entry, Recurring, Settings } from '../logic/types';
+import { tagOverview } from '../logic/tags';
 import { money, Seg } from './ui';
 
 type Range = 'all' | '3' | '6' | '12';
@@ -9,9 +10,11 @@ type Range = 'all' | '3' | '6' | '12';
 export function OverviewView({ entries, recurring, settings }: { entries: Entry[]; recurring: Recurring[]; settings: Settings }) {
   const [range, setRange] = useState<Range>('all');
   const [includeUmbau, setIncludeUmbau] = useState(false);
+  const [excluded, setExcluded] = useState<string[]>([]);
+  const allTags = tagOverview(entries);
   const names = settings.names;
   const now = ymOf(new Date());
-  const o = buildOverview(entries, recurring, { endYM: defaultEndYM(entries, now), months: range === 'all' ? 'all' : +range, includeUmbau });
+  const o = buildOverview(entries, recurring, { endYM: defaultEndYM(entries, now), months: range === 'all' ? 'all' : +range, includeUmbau, excludeTags: excluded });
   const maxCat = Math.max(1, ...o.byCategory.map((c) => c.total));
   const hasUmbau = entries.some((e) => e.umbau);
 
@@ -21,6 +24,19 @@ export function OverviewView({ entries, recurring, settings }: { entries: Entry[
         <div class="lbl">Zeitraum</div>
         <Seg value={range} onChange={setRange} options={[{ value: '3', label: '3 Mon.' }, { value: '6', label: '6 Mon.' }, { value: '12', label: '12 Mon.' }, { value: 'all', label: 'Alles' }]} />
         {!o.empty && <p class="hint">Durchschnitt über {o.n} Monat{o.n === 1 ? '' : 'e'} ({monthLabel(o.startYM)} bis {monthLabel(o.endYM)}). Der laufende Monat zählt nur mit, wenn es noch keine älteren Buchungen gibt.</p>}
+        {allTags.length > 0 && (
+          <div style="margin-top:12px">
+            <div class="lbl">Ausnahmen herausrechnen</div>
+            <div class="chips">
+              {allTags.map((t) => {
+                const on = excluded.some((x) => x.toLowerCase() === t.tag.toLowerCase());
+                return <button class={`chip ${on ? 'on-chip' : ''}`} aria-pressed={on} onClick={() => setExcluded(on ? excluded.filter((x) => x.toLowerCase() !== t.tag.toLowerCase()) : [...excluded, t.tag])}>{on ? '✕ ' : ''}#{t.tag}</button>;
+              })}
+            </div>
+            <p class="hint">Buchungen mit diesen Tags (z. B. Urlaub, Einmalig) zählen nicht in den Durchschnitt. So siehst du den normalen Alltag.</p>
+          </div>
+        )}
+        {allTags.length === 0 && <p class="hint">Tipp: Markiere einmalige Ausgaben (Urlaub, Anschaffungen) mit einem Tag wie „Einmalig“. Dann kannst du sie hier herausrechnen.</p>}
         {hasUmbau && (
           <label class="check"><input type="checkbox" checked={includeUmbau} onChange={(e) => setIncludeUmbau(e.currentTarget.checked)} /> Umbau-Rechnungen einrechnen</label>
         )}

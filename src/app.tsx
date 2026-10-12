@@ -74,7 +74,7 @@ export function App() {
           <>
             <Seg value={monthMode} onChange={setMonthMode} options={[{ value: 'month', label: 'Monat' }, { value: 'overview', label: 'Überblick' }, { value: 'tags', label: 'Tags' }]} />
             <div style="height:12px" />
-            {monthMode === 'month' && <MonthView ym={ym} setYm={setYm} settings={settings} entries={entries} recurring={recurring} onEditEntry={editEntry} onEditRecurring={editRec} />}
+            {monthMode === 'month' && <MonthView ym={ym} setYm={setYm} settings={settings} entries={entries} recurring={recurring} onEditEntry={editEntry} onEditRecurring={editRec} onNewSettlement={editEntry} />}
             {monthMode === 'overview' && <section><h1>Überblick</h1><OverviewView entries={entries} recurring={recurring} settings={settings} /></section>}
             {monthMode === 'tags' && <section><h1>Tags</h1><TagsView entries={entries} settings={settings} onEditEntry={editEntry} /></section>}
           </>

@@ -12,6 +12,11 @@ export function newEntry(settings: Settings, patch: Partial<Entry> = {}): Entry 
   };
 }
 
+/** Ausgleichszahlung: `paidBy` überweist an die andere Person. */
+export function newSettlement(settings: Settings, patch: Partial<Entry> = {}): Entry {
+  return { ...newEntry(settings), type: 'settlement', category: 'Ausgleich', description: 'Ausgleich', tags: undefined, ...patch };
+}
+
 export function newUmbauEntry(settings: Settings): Entry {
   return newEntry(settings, { category: 'Umbau', umbau: { trade: '', paid: true }, tags: undefined });
 }
