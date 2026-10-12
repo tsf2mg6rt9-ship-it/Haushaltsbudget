@@ -134,3 +134,34 @@ describe('Gehalt trotz geänderter Höhe als Fixposten erkannt', () => {
     expect(buildCandidates(rows, 0, map, { ...base, recurring: [], owner: 0 }).candidates[0].selected).toBe(true);
   });
 });
+
+describe('Duplikate: nur auf demselben Konto, Ausgleich mit Datumstoleranz', () => {
+  const csv = (date: string, amount: string) => parseCSV(`Buchungsdatum;Partnername;Verwendungszweck;Betrag\n${date};Parkhaus;Parken;${amount}`);
+  const ex = (o: Partial<Entry>): Entry => ({ id: Math.random().toString(36), date: '2026-04-10', description: 'Parken', category: 'Mobilität', amountCents: 440, type: 'expense', share1Pct: 50, paidBy: 0, ...o });
+  const base = { recurring: [], categories: DEFAULT_CATEGORIES };
+  const run = (rows: string[][], existing: Entry[], owner: 0 | 1) => buildCandidates(rows, 0, detectMapping(rows[0]), { ...base, existing, owner }).candidates;
+
+  it('gleiche Parkgebühr auf dem Konto der anderen Person ist keine Dublette', () => {
+    const rows = csv('10.04.2026', '-4,40');
+    expect(run(rows, [ex({ paidBy: 0 })], 1)[0]).toMatchObject({ duplicate: false, selected: true });
+  });
+  it('erneuter Import desselben Kontos bleibt eine Dublette', () => {
+    const rows = csv('10.04.2026', '-4,40');
+    expect(run(rows, [ex({ paidBy: 1 })], 1)[0]).toMatchObject({ duplicate: true, selected: false });
+  });
+  it('Ausgleich: 1–3 Tage Abstand gelten als bereits erfasst, mehr nicht, falsche Richtung nicht', () => {
+    const settle = ex({ type: 'settlement', category: 'Ausgleich', date: '2026-04-10', amountCents: 30000, paidBy: 1 }); // Partner -> Konto-Inhaber 0
+    expect(run(csv('13.04.2026', '300,00'), [settle], 0)[0].duplicate).toBe(true);
+    expect(run(csv('14.04.2026', '300,00'), [settle], 0)[0].duplicate).toBe(false);
+    expect(run(csv('11.04.2026', '-300,00'), [settle], 0)[0].duplicate).toBe(false);
+  });
+  it('Ausgleich aus der Sicht des anderen Kontos: derselbe Eintrag zählt dort als Ausgabe', () => {
+    const settle = ex({ type: 'settlement', category: 'Ausgleich', date: '2026-04-10', amountCents: 30000, paidBy: 1 });
+    expect(run(csv('10.04.2026', '-300,00'), [settle], 1)[0].duplicate).toBe(true);
+  });
+  it('jede vorhandene Ausgleichszahlung deckt nur eine Zeile ab', () => {
+    const settle = ex({ type: 'settlement', category: 'Ausgleich', date: '2026-04-10', amountCents: 30000, paidBy: 1 });
+    const rows = parseCSV('Buchungsdatum;Partnername;Verwendungszweck;Betrag\n10.04.2026;A;x;300,00\n10.04.2026;B;y;300,00');
+    expect(run(rows, [settle], 0).map((c) => c.duplicate)).toEqual([true, false]);
+  });
+});

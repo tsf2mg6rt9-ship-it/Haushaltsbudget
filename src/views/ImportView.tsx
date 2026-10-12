@@ -171,7 +171,7 @@ export function ImportView({ settings, entries, recurring, onClose }: { settings
 
       {step === 'review' && (
         <>
-          <p class="muted">{chosen.length} von {cands.length} Zeilen ausgewählt{skipped ? ` · ${skipped} nicht lesbare Zeilen übersprungen` : ''}. Duplikate, Fixposten und Umbuchungen auf eigene Konten sind abgewählt.</p>
+          <p class="muted">{chosen.length} von {cands.length} Zeilen ausgewählt{skipped ? ` · ${skipped} nicht lesbare Zeilen übersprungen` : ''}. Duplikate (gleiches Datum und gleicher Betrag auf demselben Konto), Fixposten und Umbuchungen auf eigene Konten sind abgewählt. Ist eine abgewählte Zeile doch eine echte, eigene Zahlung, setze einfach das Häkchen.</p>
           <div class="actions" style="margin-top:0">
             <button onClick={() => setCands((cs) => cs.map((c) => ({ ...c, selected: !c.duplicate && !c.fixMatch && !c.transfer })))}>Empfohlen</button>
             <button onClick={() => setCands((cs) => cs.map((c) => ({ ...c, selected: true })))}>Alle</button>

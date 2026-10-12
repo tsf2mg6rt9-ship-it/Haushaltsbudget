@@ -1,4 +1,4 @@
-import { isValidISO, ymOf } from './dates';
+import { fromISO, isValidISO, ymOf } from './dates';
 import { isActive } from './calc';
 import { matchFix } from './fixmatch';
 import { guessCategory } from './quick';
@@ -252,13 +252,19 @@ function cleanText(s: string): string {
 }
 
 export function buildCandidates(rows: string[][], headerRow: number, map: Mapping, ctx: BuildContext): BuildResult {
+  const owner = ctx.owner ?? 0;
+  // Duplikate nur innerhalb desselben Kontos: eine gleiche Zahlung auf dem Konto der anderen Person (z. B. beide
+  // zahlen unabhängig voneinander dieselbe Parkgebühr) ist keine Dublette.
   const counts = new Map<string, number>();
   for (const e of ctx.existing) {
-    // Ausgleich: hat der Kontoinhaber überwiesen, ist es auf seinem Konto eine Ausgabe, sonst eine Einnahme
-    const t = e.type === 'settlement' ? (e.paidBy === (ctx.owner ?? 0) ? 'expense' : 'income') : e.type;
-    const k = `${e.date}|${t}|${e.amountCents}`;
+    if (e.type === 'settlement' || e.paidBy !== owner) continue;
+    const k = `${e.date}|${e.type}|${e.amountCents}`;
     counts.set(k, (counts.get(k) ?? 0) + 1);
   }
+  // Ausgleichszahlungen stehen in beiden Kontoauszügen (oft mit 1–2 Tagen Abstand): gleicher Betrag, höchstens 3 Tage
+  // Unterschied, passende Richtung (Kontoinhaber hat überwiesen = Ausgabe, erhalten = Einnahme)
+  const settles = ctx.existing.filter((e) => e.type === 'settlement').map((e) => ({ e, used: false }));
+  const dayDiff = (a: string, b: string) => Math.abs(fromISO(a).getTime() - fromISO(b).getTime()) / 86_400_000;
   const candidates: Candidate[] = [];
   let skipped = 0;
   for (let i = headerRow + 1; i < rows.length; i++) {
@@ -284,14 +290,17 @@ export function buildCandidates(rows: string[][], headerRow: number, map: Mappin
     if (description.length > 90) description = description.slice(0, 89) + '…';
     const key = `${date}|${type}|${amountCents}`;
     const left = counts.get(key) ?? 0;
-    const duplicate = left > 0;
+    let duplicate = left > 0;
     if (duplicate) counts.set(key, left - 1);
+    else {
+      const s = settles.find((x) => !x.used && x.e.amountCents === amountCents && dayDiff(x.e.date, date) <= 3 && (type === 'income') === (x.e.paidBy !== owner));
+      if (s) { s.used = true; duplicate = true; }
+    }
     const ym = ymOf(date);
     const low0 = description.toLowerCase();
     const partner = (ctx.ignoreTerms ?? []).some((t) => t.trim() !== '' && low0.includes(t.trim().toLowerCase()));
     let cat = guessCategory(description.toLowerCase(), ctx.categories, ctx.learned, ctx.rules);
     if (type === 'income' ? cat !== 'Gehalt' : cat === 'Gehalt') cat = '';
-    const owner = ctx.owner ?? 0;
     // Passt zu einem Fixposten (Bezeichnung im Text, gleicher Betrag, Abbuchungsmonat mit ähnlichem Betrag) – oder ein
     // Gehalt, wenn für den Kontoinhaber in diesem Monat schon ein festes Gehalt gilt (Betrag kann sich geändert haben)
     const hit = partner ? undefined : matchFix(ctx.recurring, { type, ym, amountCents, text: description.toLowerCase(), category: cat, owner });
