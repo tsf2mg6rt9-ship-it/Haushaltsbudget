@@ -8,7 +8,7 @@ export const DEFAULT_CATEGORIES = [
   'Kleidung', 'Haushalt', 'Umbau', 'Sonstiges', 'Gehalt', 'Sonstige Einnahmen',
 ];
 
-export const DEFAULT_LOAN: LoanSettings = { ratePct: 4, years: 25, bufferPct: 10, wishCents: null, refYM: null, scenario: 'both', soloFullFixed: true, soloVariablePct: 60 };
+export const DEFAULT_LOAN: LoanSettings = { ratePct: 4, years: 25, bufferPct: 10, wishCents: null, refYM: null, scenario: 'both', noSpecialPay: false, soloFullFixed: true, soloVariablePct: 60 };
 
 export const DEFAULT_SETTINGS: Settings = {
   names: ['Ich', 'Freund'],
@@ -48,6 +48,7 @@ function cleanLoan(v: unknown): LoanSettings {
     bufferPct: num(v.bufferPct, DEFAULT_LOAN.bufferPct, 0, 100),
     wishCents: int(v.wishCents),
     refYM: typeof v.refYM === 'string' && isValidYM(v.refYM) ? v.refYM : null,
+    noSpecialPay: v.noSpecialPay === true,
     scenario: v.scenario === 'p0' || v.scenario === 'p1' ? v.scenario : 'both',
     soloFullFixed: v.soloFullFixed !== false,
     soloVariablePct: num(v.soloVariablePct, DEFAULT_LOAN.soloVariablePct, 0, 200),
@@ -100,6 +101,7 @@ function cleanRecurring(v: unknown): Recurring | null {
     share1Pct: pct(v.share1Pct),
     paidBy: person(v.paidBy),
   };
+  if (v.pay14 === true && r.rhythm === 'monthly' && r.type === 'income') r.pay14 = true;
   if (typeof v.dueMonth === 'number' && Number.isInteger(v.dueMonth) && v.dueMonth >= 1 && v.dueMonth <= 12) r.dueMonth = v.dueMonth;
   if (typeof v.from === 'string' && isValidYM(v.from)) r.from = v.from;
   if (typeof v.to === 'string' && isValidYM(v.to)) r.to = v.to;

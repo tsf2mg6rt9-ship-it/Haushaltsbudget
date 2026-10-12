@@ -41,7 +41,7 @@ export function recurringCSV(recurring: Recurring[], settings: Settings): string
   const rh = { monthly: 'monatlich', quarterly: 'quartalsweise', yearly: 'jährlich' };
   for (const r of recurring) {
     rows.push([
-      r.label, r.type === 'expense' ? 'Ausgabe' : 'Einnahme', r.category, eurNum(r.amountCents), rh[r.rhythm],
+      r.label, r.type === 'expense' ? 'Ausgabe' : 'Einnahme', r.category, eurNum(r.amountCents), r.pay14 ? 'monatlich, 14 Gehälter' : rh[r.rhythm],
       eurNum(monthlyCents(r)), String(r.share1Pct).replace('.', ','), settings.names[r.paidBy], r.from ?? '', r.to ?? '',
     ]);
   }

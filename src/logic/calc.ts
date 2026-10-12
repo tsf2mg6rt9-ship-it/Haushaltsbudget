@@ -5,8 +5,10 @@ import type { ClosedMonth, Entry, Line, MonthSummary, Recurring, Rhythm, Settlem
 const DIVISOR: Record<Rhythm, number> = { monthly: 1, quarterly: 3, yearly: 12 };
 
 /** Monatlicher Anteil einer Fixposition (Quartal/Jahr werden auf Monate umgelegt). */
-export function monthlyCents(r: Pick<Recurring, 'amountCents' | 'rhythm'>): number {
-  return Math.round(r.amountCents / DIVISOR[r.rhythm]);
+export function monthlyCents(r: Pick<Recurring, 'amountCents' | 'rhythm'> & { pay14?: boolean }): number {
+  // 14 Gehälter: 13. und 14. Gehalt zusätzlich, auf 12 Monate verteilt
+  const base = r.pay14 ? (r.amountCents * 14) / 12 : r.amountCents;
+  return Math.round(base / DIVISOR[r.rhythm]);
 }
 
 export function isActive(r: Pick<Recurring, 'from' | 'to'>, ym: YM): boolean {

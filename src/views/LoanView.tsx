@@ -9,8 +9,11 @@ import { Seg, money } from './ui';
 
 const YEARS = [10, 15, 20, 25, 30];
 
-export function LoanView({ entries, recurring, settings }: { entries: Entry[]; recurring: Recurring[]; settings: Settings }) {
+export function LoanView({ entries, recurring: allRecurring, settings }: { entries: Entry[]; recurring: Recurring[]; settings: Settings }) {
   const loan = settings.loan;
+  const hasPay14 = allRecurring.some((r) => r.pay14);
+  // Vorsichtig: 13./14. Gehalt nicht in die leistbare Rate einrechnen
+  const recurring = loan.noSpecialPay ? allRecurring.map((r) => (r.pay14 ? { ...r, pay14: undefined } : r)) : allRecurring;
   const names = settings.names;
   const now = ymOf(new Date());
   const next = addMonths(now, 1);
@@ -80,6 +83,9 @@ export function LoanView({ entries, recurring, settings }: { entries: Entry[]; r
             <tr class="sum"><td>= Möglich für Kreditrate</td><td class={a.freeRaw < 0 ? 'neg' : 'pos'}>{money(a.freeRaw)}</td></tr>
           </tbody>
         </table>
+        {hasPay14 && (
+          <label class="check"><input type="checkbox" checked={loan.noSpecialPay} onChange={(e) => save({ noSpecialPay: e.currentTarget.checked })} /> 13./14. Gehalt nicht einrechnen (vorsichtig, nur 12 Gehälter)</label>
+        )}
         <div class="two">
           <label class="field">
             <span class="lbl">Variable Ausgaben / Monat (€)</span>

@@ -45,6 +45,8 @@ export interface Recurring {
   /** Betrag pro Zahlung (je nach Rhythmus). */
   amountCents: number;
   rhythm: Rhythm;
+  /** Österreich: 14 Gehälter pro Jahr (13./14. Gehalt = Urlaubs- und Weihnachtsgeld), auf 12 Monate verteilt (× 14/12) */
+  pay14?: boolean;
   /** Bei jährlich/quartalsweise: Monat (1–12) der (ersten) Abbuchung */
   dueMonth?: number;
   share1Pct: number;
@@ -75,6 +77,8 @@ export interface LoanSettings {
   wishCents: number | null;
   /** Bezugsmonat für die Berechnung; null = nächster Monat */
   refYM: YM | null;
+  /** 13./14. Gehalt (pay14) bei der Berechnung nicht einrechnen – vorsichtig */
+  noSpecialPay: boolean;
   /** Wer zahlt die Rate: beide gemeinsam oder eine Person allein (Trennungs-Szenario) */
   scenario: 'both' | 'p0' | 'p1';
   /** Solo-Szenario: Fixkosten mit vollem Betrag (Wohnung allein) statt nur dem bisherigen Anteil */

@@ -198,13 +198,13 @@ export function RecurringForm({
     if (r.from && !isValidYM(r.from)) return setErr('„Ab“ ist ungültig.');
     if (r.to && !isValidYM(r.to)) return setErr('„Bis“ ist ungültig.');
     if (r.from && r.to && r.from > r.to) return setErr('„Ab“ liegt nach „Bis“.');
-    onSave({ ...r, label: r.label.trim(), amountCents: cents });
+    onSave({ ...r, label: r.label.trim(), amountCents: cents, pay14: r.type === 'income' && r.rhythm === 'monthly' ? r.pay14 : undefined });
   };
 
   return (
     <Modal title={initial.label ? 'Fixposten bearbeiten' : r.type === 'income' ? 'Neue feste Einnahme' : 'Neue Fixkost'} onClose={onClose}>
       <form onSubmit={submit}>
-        <Seg value={r.type} onChange={(type) => patch({ type })} options={[{ value: 'expense', label: 'Fixkost' }, { value: 'income', label: 'Feste Einnahme' }]} />
+        <Seg value={r.type} onChange={(type) => patch({ type, pay14: type === 'income' ? r.pay14 : undefined })} options={[{ value: 'expense', label: 'Fixkost' }, { value: 'income', label: 'Feste Einnahme' }]} />
         <Field label="Bezeichnung">
           <input autocomplete="off" placeholder={r.type === 'income' ? 'z. B. Gehalt' : 'z. B. Miete'} value={r.label} onInput={(ev) => patch({ label: ev.currentTarget.value })} />
         </Field>
@@ -217,7 +217,19 @@ export function RecurringForm({
           <input inputMode="decimal" placeholder="0,00" value={amount} onInput={(ev) => setAmount(ev.currentTarget.value)} />
         </Field>
         <div class="lbl">Rhythmus</div>
-        <Seg value={r.rhythm} onChange={(rhythm: Rhythm) => patch({ rhythm, dueMonth: rhythm === 'monthly' ? undefined : r.dueMonth })} options={[{ value: 'monthly', label: 'Monatlich' }, { value: 'quarterly', label: 'Quartal' }, { value: 'yearly', label: 'Jährlich' }]} />
+        <Seg value={r.rhythm} onChange={(rhythm: Rhythm) => patch({ rhythm, dueMonth: rhythm === 'monthly' ? undefined : r.dueMonth, pay14: rhythm === 'monthly' ? r.pay14 : undefined })} options={[{ value: 'monthly', label: 'Monatlich' }, { value: 'quarterly', label: 'Quartal' }, { value: 'yearly', label: 'Jährlich' }]} />
+        {r.type === 'income' && r.rhythm === 'monthly' && (
+          <div class="rulebox">
+            <label class="check" style="margin-top:0">
+              <input type="checkbox" checked={!!r.pay14} onChange={(ev) => patch({ pay14: ev.currentTarget.checked || undefined })} />
+              14 Gehälter pro Jahr (Österreich)
+            </label>
+            <span class="hint">
+              Das 13. und 14. Gehalt (Urlaubs- und Weihnachtsgeld, z. B. im Juni/Juli und Dezember) werden zusätzlich dazugerechnet und auf 12 Monate verteilt.
+              {r.pay14 && cents ? ` Durchschnitt: ${formatMoney(monthlyCents({ amountCents: cents, rhythm: 'monthly', pay14: true }))} pro Monat statt ${formatMoney(cents)}.` : ''} Trage hier den normalen monatlichen Nettobetrag ein.
+            </span>
+          </div>
+        )}
         {r.rhythm !== 'monthly' && (
           <Field label={r.rhythm === 'yearly' ? 'Abbuchung im Monat' : 'Erste Abbuchung im Jahr (dann alle 3 Monate)'} hint="Damit weiß die App, wann die Zahlung wirklich vom Konto geht – und zählt sie beim Kontoauszug-Import nicht zusätzlich.">
             <select value={r.dueMonth ? String(r.dueMonth) : ''} onChange={(ev) => patch({ dueMonth: ev.currentTarget.value ? +ev.currentTarget.value : undefined })}>
