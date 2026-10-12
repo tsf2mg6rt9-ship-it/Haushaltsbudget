@@ -1,7 +1,7 @@
 import { useState } from 'preact/hooks';
 import { addMonths, formatDate, monthLabel, ymOf } from '../logic/dates';
 import { todayISO } from '../defaults';
-import { closeMonths, cumulativeSettlement, firstDataMonth, monthBalance1, summarizeMonth } from '../logic/calc';
+import { closeMonths, cumulativeSettlement, filterLinesByWho, firstDataMonth, monthBalance1, summarizeLines, summarizeMonth, type Who } from '../logic/calc';
 import { saveSettings } from '../store';
 import { isDueInMonth } from '../logic/fixmatch';
 import { isActive, monthlyCents } from '../logic/calc';
@@ -10,17 +10,19 @@ import type { Entry, Line, Recurring, Settings } from '../logic/types';
 import type { Flag } from '../logic/review';
 import { saveFile } from '../files';
 import { newSettlement } from '../defaults';
-import { CatDot, ColorsCtx, money, SettlementText, TagList } from './ui';
+import { CatDot, ColorsCtx, money, Seg, SettlementText, TagList } from './ui';
 import { colorForCategory } from '../logic/colors';
 import { useContext } from 'preact/hooks';
 
 const FLAG_LABEL = { gehalt: 'Gehalt doppelt?', fix: 'Fixposten doppelt?', dublette: 'Dublette?', partner: 'Ausgleich?', umbuchung: 'Umbuchung?' } as const;
 
 export function MonthView({
-  ym, setYm, settings, entries, recurring, onEditEntry, onEditRecurring, onNewSettlement, flags,
+  ym, setYm, settings, entries, recurring, onEditEntry, onEditRecurring, onNewSettlement, flags, who, setWho,
 }: {
   onNewSettlement: (e: Entry) => void;
   flags: Map<string, Flag[]>;
+  who: Who;
+  setWho: (w: Who) => void;
   ym: string;
   setYm: (ym: string) => void;
   settings: Settings;
@@ -33,12 +35,14 @@ export function MonthView({
   const [catFilter, setCatFilter] = useState<string | null>(null);
   const colors = useContext(ColorsCtx);
   const names = settings.names;
-  const s = summarizeMonth(ym, entries, recurring, { includeUmbau });
-  const due = recurring.filter((f) => isActive(f, ym) && isDueInMonth(f, ym));
+  const all = summarizeMonth(ym, entries, recurring, { includeUmbau });
+  // Gefilterte Sicht (Person bzw. gemeinsam): Zahlen, Kategorien und Posten beziehen sich nur auf diese Posten
+  const s = who === 'all' ? all : summarizeLines(ym, filterLinesByWho(all.lines, who));
+  const due = recurring.filter((f) => isActive(f, ym) && isDueInMonth(f, ym) && (who === 'all' || (who === 'shared' ? f.type === 'expense' && f.share1Pct > 0 && f.share1Pct < 100 : f.paidBy === +who)));
   const closed = settings.closedMonths;
   const isClosed = !!closed[ym];
   const total = cumulativeSettlement(entries, recurring, ym, closed);
-  const showTotal = total.amountCents !== s.settlement.amountCents || total.from !== s.settlement.from;
+  const showTotal = total.amountCents !== all.settlement.amountCents || total.from !== all.settlement.from;
   const shown = catFilter ? s.lines.filter((l) => l.category === catFilter) : s.lines;
   const maxCat = Math.max(1, ...s.byCategory.map((c) => c.cents));
   const hasUmbau = entries.some((e) => e.umbau);
@@ -61,15 +65,18 @@ export function MonthView({
         <button onClick={() => setYm(addMonths(ym, 1))} aria-label="Nächster Monat">›</button>
       </div>
       <h1>{monthLabel(ym)}</h1>
+      <Seg value={who} onChange={setWho} options={[{ value: 'all', label: 'Alle' }, { value: '0', label: names[0] }, { value: '1', label: names[1] }, { value: 'shared', label: 'Gemeinsam' }]} />
+      <div style="height:12px" />
 
+      {who === 'all' ? (
       <div class="card highlight">
         <div class="lbl">Ausgleich</div>
         {isClosed ? (
           <>
             <p class="big">✓ Als ausgeglichen markiert</p>
-            {(s.settlement.amountCents > 0 || closed[ym].balance1 !== 0) && (
+            {(all.settlement.amountCents > 0 || closed[ym].balance1 !== 0) && (
               <p class="hint">
-                Rechnerisch wäre: {s.settlement.from === null ? 'ausgeglichen' : <SettlementText s={s.settlement} names={names} />}
+                Rechnerisch wäre: {all.settlement.from === null ? 'ausgeglichen' : <SettlementText s={all.settlement} names={names} />}
                 {monthBalance1(summarizeMonth(ym, entries, recurring)) !== closed[ym].balance1 && ' (bei der Markierung war die Differenz eine andere)'}.
               </p>
             )}
@@ -77,8 +84,8 @@ export function MonthView({
           </>
         ) : (
           <>
-            <p class="big"><SettlementText s={s.settlement} names={names} /></p>
-            {s.settled[0] + s.settled[1] > 0 && <p class="hint">Bereits überwiesen in diesem Monat: {money(s.settled[0] + s.settled[1])}.</p>}
+            <p class="big"><SettlementText s={all.settlement} names={names} /></p>
+            {all.settled[0] + all.settled[1] > 0 && <p class="hint">Bereits überwiesen in diesem Monat: {money(all.settled[0] + all.settled[1])}.</p>}
           </>
         )}
         {showTotal && (
@@ -100,12 +107,15 @@ export function MonthView({
           )}
           <button onClick={() => onNewSettlement(newSettlement(settings, {
             date: ym === ymOf(new Date()) ? todayISO() : `${ym}-28`,
-            paidBy: (total.from ?? s.settlement.from ?? 1) as 0 | 1,
-            amountCents: total.amountCents || s.settlement.amountCents,
+            paidBy: (total.from ?? all.settlement.from ?? 1) as 0 | 1,
+            amountCents: total.amountCents || all.settlement.amountCents,
           }))}>Überweisung erfassen</button>
         </div>
         <p class="hint">Überweisungen zwischen euch zählen nie als Einnahme oder Ausgabe. „Ausgeglichen markieren“ ist für pauschalen Ausgleich (z. B. bar), ohne die Differenz einzeln zu buchen.</p>
       </div>
+      ) : (
+        <div class="card"><p class="hint" style="margin:0">{who === 'shared' ? 'Gemeinsame (geteilte) Ausgaben dieses Monats – ohne rein private Posten.' : `Alles, was ${names[+who]} in diesem Monat bezahlt bzw. erhalten hat – inklusive gemeinsam Bezahltem.`} Den Ausgleich siehst du unter „Alle“.</p></div>
+      )}
 
       {due.length > 0 && (
         <div class="card">
@@ -158,7 +168,7 @@ export function MonthView({
           </div>
         )}
         {catFilter && shown.length === 0 && <p class="muted">In diesem Monat gibt es nichts in „{catFilter}“.</p>}
-        {s.lines.length === 0 && <p class="muted">Noch nichts eingetragen. Fixkosten legst du im Tab „Fix“ an, Ausgaben über „Buchen“.</p>}
+        {s.lines.length === 0 && <p class="muted">{who === 'all' ? 'Noch nichts eingetragen. Fixkosten legst du im Tab „Fix“ an, Ausgaben über „Buchen“.' : 'In dieser Sicht gibt es in diesem Monat nichts.'}</p>}
         <ul class="list">
           {shown.map((l) => (
             <li key={l.key}>

@@ -61,6 +61,23 @@ export function computeSettlement(paid: [number, number], expenseShare: [number,
   return { from: null, to: null, amountCents: 0 };
 }
 
+/** Sicht auf den Monat: alle Posten, Posten einer Person (bezahlt/erhalten von ihr) oder die geteilten Ausgaben. */
+export type Who = 'all' | '0' | '1' | 'shared';
+
+/**
+ * Filtert Monatsposten. Person: was diese Person bezahlt bzw. erhalten hat (Konten-Sicht, inkl. gemeinsam Bezahltem).
+ * Gemeinsam: Ausgaben, die zwischen beiden geteilt sind (egal wer bezahlt hat). Ausgleichszahlungen bleiben in
+ * Personen- und Gemeinsam-Sicht sichtbar, weil sie beide betreffen.
+ */
+export function filterLinesByWho(lines: Line[], who: Who): Line[] {
+  if (who === 'all') return lines;
+  return lines.filter((l) => {
+    if (l.type === 'settlement') return true;
+    if (who === 'shared') return l.type === 'expense' && l.share1Pct > 0 && l.share1Pct < 100;
+    return l.paidBy === +who;
+  });
+}
+
 export function summarizeLines(ym: YM, lines: Line[]): MonthSummary {
   const income: [number, number] = [0, 0];
   const expenseShare: [number, number] = [0, 0];
