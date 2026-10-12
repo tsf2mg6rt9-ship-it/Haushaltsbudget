@@ -185,7 +185,7 @@ export function ImportView({ settings, entries, recurring, onClose }: { settings
                       <span class="title"><CatDot category={c.category} />{c.description || '–'}</span>
                       <span class="sub">{formatDate(c.date)}
                         {c.duplicate && <span class="tag warn">schon vorhanden</span>}
-                        {c.fixMatch && <span class="tag warn">Fixposten?</span>}
+                        {c.fixMatch && <span class="tag warn">Fixposten{c.fixLabel ? ` „${c.fixLabel}“` : ''}?</span>}
                         {c.transfer && <span class="tag warn">Umbuchung?</span>}
                         {c.partner && <span class="tag ok">Ausgleich Partner</span>}
                       </span>

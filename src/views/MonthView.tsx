@@ -3,6 +3,8 @@ import { addMonths, formatDate, monthLabel, ymOf } from '../logic/dates';
 import { todayISO } from '../defaults';
 import { closeMonths, cumulativeSettlement, firstDataMonth, monthBalance1, summarizeMonth } from '../logic/calc';
 import { saveSettings } from '../store';
+import { isDueInMonth } from '../logic/fixmatch';
+import { isActive, monthlyCents } from '../logic/calc';
 import { monthCSV } from '../logic/csv';
 import type { Entry, Line, Recurring, Settings } from '../logic/types';
 import type { Flag } from '../logic/review';
@@ -32,6 +34,7 @@ export function MonthView({
   const colors = useContext(ColorsCtx);
   const names = settings.names;
   const s = summarizeMonth(ym, entries, recurring, { includeUmbau });
+  const due = recurring.filter((f) => isActive(f, ym) && isDueInMonth(f, ym));
   const closed = settings.closedMonths;
   const isClosed = !!closed[ym];
   const total = cumulativeSettlement(entries, recurring, ym, closed);
@@ -103,6 +106,16 @@ export function MonthView({
         </div>
         <p class="hint">Überweisungen zwischen euch zählen nie als Einnahme oder Ausgabe. „Ausgeglichen markieren“ ist für pauschalen Ausgleich (z. B. bar), ohne die Differenz einzeln zu buchen.</p>
       </div>
+
+      {due.length > 0 && (
+        <div class="card">
+          <div class="lbl">In diesem Monat abgebucht (Fixposten)</div>
+          <table class="grid"><tbody>
+            {due.map((f) => <tr><td>{f.label}<br /><small class="muted">{f.category} · schon auf {f.rhythm === 'yearly' ? '12' : '3'} Monate verteilt ({money(monthlyCents(f))}/Mon.)</small></td><td>{money(f.amountCents)}</td></tr>)}
+          </tbody></table>
+          <p class="hint">Diese Abbuchung ist bereits in den Monatszahlen enthalten – sie nicht noch einmal einzeln buchen oder importieren.</p>
+        </div>
+      )}
 
       <div class="card">
         <table class="grid">

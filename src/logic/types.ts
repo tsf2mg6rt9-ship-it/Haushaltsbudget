@@ -43,6 +43,8 @@ export interface Recurring {
   /** Betrag pro Zahlung (je nach Rhythmus). */
   amountCents: number;
   rhythm: Rhythm;
+  /** Bei jährlich/quartalsweise: Monat (1–12) der (ersten) Abbuchung */
+  dueMonth?: number;
   share1Pct: number;
   paidBy: PersonIdx;
   from?: YM;

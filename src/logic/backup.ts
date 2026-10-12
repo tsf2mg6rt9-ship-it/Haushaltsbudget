@@ -99,6 +99,7 @@ function cleanRecurring(v: unknown): Recurring | null {
     share1Pct: pct(v.share1Pct),
     paidBy: person(v.paidBy),
   };
+  if (typeof v.dueMonth === 'number' && Number.isInteger(v.dueMonth) && v.dueMonth >= 1 && v.dueMonth <= 12) r.dueMonth = v.dueMonth;
   if (typeof v.from === 'string' && isValidYM(v.from)) r.from = v.from;
   if (typeof v.to === 'string' && isValidYM(v.to)) r.to = v.to;
   return r;

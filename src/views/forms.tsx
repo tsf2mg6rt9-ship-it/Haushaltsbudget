@@ -6,6 +6,8 @@ import { monthlyCents } from '../logic/calc';
 import type { Entry, Recurring, Rhythm, Settings } from '../logic/types';
 import { Field, Modal, Seg, TagInput } from './ui';
 
+const MONTH_NAMES = ['Jänner', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
+
 function SharePicker({ pct, onChange, names }: { pct: number; onChange: (n: number) => void; names: [string, string] }) {
   const preset = pct === 50 ? 'half' : pct === 100 ? 'p1' : pct === 0 ? 'p2' : 'custom';
   return (
@@ -215,7 +217,15 @@ export function RecurringForm({
           <input inputMode="decimal" placeholder="0,00" value={amount} onInput={(ev) => setAmount(ev.currentTarget.value)} />
         </Field>
         <div class="lbl">Rhythmus</div>
-        <Seg value={r.rhythm} onChange={(rhythm: Rhythm) => patch({ rhythm })} options={[{ value: 'monthly', label: 'Monatlich' }, { value: 'quarterly', label: 'Quartal' }, { value: 'yearly', label: 'Jährlich' }]} />
+        <Seg value={r.rhythm} onChange={(rhythm: Rhythm) => patch({ rhythm, dueMonth: rhythm === 'monthly' ? undefined : r.dueMonth })} options={[{ value: 'monthly', label: 'Monatlich' }, { value: 'quarterly', label: 'Quartal' }, { value: 'yearly', label: 'Jährlich' }]} />
+        {r.rhythm !== 'monthly' && (
+          <Field label={r.rhythm === 'yearly' ? 'Abbuchung im Monat' : 'Erste Abbuchung im Jahr (dann alle 3 Monate)'} hint="Damit weiß die App, wann die Zahlung wirklich vom Konto geht – und zählt sie beim Kontoauszug-Import nicht zusätzlich.">
+            <select value={r.dueMonth ? String(r.dueMonth) : ''} onChange={(ev) => patch({ dueMonth: ev.currentTarget.value ? +ev.currentTarget.value : undefined })}>
+              <option value="">– noch unbekannt –</option>
+              {MONTH_NAMES.map((m, i) => <option value={String(i + 1)}>{r.rhythm === 'quarterly' ? `${m}, ${MONTH_NAMES[(i + 3) % 12]}, ${MONTH_NAMES[(i + 6) % 12]}, ${MONTH_NAMES[(i + 9) % 12]}` : m}</option>)}
+            </select>
+          </Field>
+        )}
         {r.rhythm !== 'monthly' && cents ? <div class="hint">Wird automatisch auf {formatMoney(perMonth)} pro Monat umgelegt (Betrag ÷ {r.rhythm === 'yearly' ? 12 : 3}).</div> : null}
         <div class="two">
           <Field label="Ab Monat (optional)">

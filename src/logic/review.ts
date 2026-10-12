@@ -1,4 +1,5 @@
-import { isActive, monthlyCents } from './calc';
+import { isActive } from './calc';
+import { matchFix } from './fixmatch';
 import { ymOf } from './dates';
 import { TRANSFER_RE } from './bankcsv';
 import type { Entry, Recurring } from './types';
@@ -35,9 +36,7 @@ export function findFlags(entries: Entry[], recurring: Recurring[], partnerTerms
       && recurring.some((f) => f.type === 'income' && f.category === 'Gehalt' && f.paidBy === e.paidBy && isActive(f, ym))) {
       add(e.id, { kind: 'gehalt', text: 'Gehalt zusätzlich zum festen Gehalt – doppelt gezählt?' });
     } else if (!e.umbau && e.type !== 'settlement') {
-      const f = recurring.find((r) => r.type === e.type && isActive(r, ym)
-        && (monthlyCents(r) === e.amountCents || r.amountCents === e.amountCents)
-        && (r.category === e.category || (r.label.trim() !== '' && low.includes(r.label.trim().toLowerCase()))));
+      const f = matchFix(recurring, { type: e.type, ym, amountCents: e.amountCents, text: low, category: e.category, owner: e.paidBy, strictAmount: true });
       if (f) add(e.id, { kind: 'fix', text: `Sieht aus wie dein Fixposten „${f.label}“ – doppelt gezählt?` });
     }
     // Dubletten: gleiche Buchung (Datum, Typ, Betrag, Beschreibung) mehrfach

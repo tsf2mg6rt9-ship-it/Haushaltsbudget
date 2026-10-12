@@ -3,6 +3,7 @@ import { monthLabel } from '../logic/dates';
 import type { Recurring, Settings } from '../logic/types';
 import { money } from './ui';
 
+const MONTHS = ['Jänner', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
 const RH = { monthly: 'monatlich', quarterly: 'quartalsweise', yearly: 'jährlich' };
 
 function List({ items, settings, onEdit }: { items: Recurring[]; settings: Settings; onEdit: (r: Recurring) => void }) {
@@ -16,7 +17,7 @@ function List({ items, settings, onEdit }: { items: Recurring[]; settings: Setti
               <span class="title">{r.label}</span>
               <span class="sub">
                 {r.category} · {r.type === 'expense' ? `${settings.names[r.paidBy]} zahlt · ${r.share1Pct === 50 ? '50/50' : `${r.share1Pct}/${100 - r.share1Pct}`}` : `für ${settings.names[r.paidBy]}`}
-                {r.rhythm !== 'monthly' && ` · ${money(r.amountCents)} ${RH[r.rhythm]}`}
+                {r.rhythm !== 'monthly' && ` · ${money(r.amountCents)} ${RH[r.rhythm]}${r.dueMonth ? `, abgebucht im ${r.rhythm === 'yearly' ? MONTHS[r.dueMonth - 1] : `${MONTHS[r.dueMonth - 1]} (alle 3 Monate)`}` : ''}`}
                 {(r.from || r.to) && ` · ${r.from ? `ab ${monthLabel(r.from)}` : ''}${r.from && r.to ? ' ' : ''}${r.to ? `bis ${monthLabel(r.to)}` : ''}`}
               </span>
             </span>

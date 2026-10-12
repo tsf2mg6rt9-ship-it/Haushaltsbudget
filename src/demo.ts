@@ -44,7 +44,7 @@ const demoRecurring = (): Recurring[] => [
   r('2', 'Gehalt Ben', 'Gehalt', 'income', 2700, { paidBy: 1 }),
   r('3', 'Miete', 'Wohnen', 'expense', 780),
   r('4', 'Internet', 'Abos', 'expense', 35, { paidBy: 1 }),
-  r('5', 'Haushaltsversicherung', 'Versicherung', 'expense', 120, { rhythm: 'quarterly' }),
+  r('5', 'Haushaltsversicherung', 'Versicherung', 'expense', 120, { rhythm: 'quarterly', dueMonth: new Date().getMonth() + 1 }),
   r('6', 'Strom & Wasser (neue Wohnung)', 'Wohnen', 'expense', 160, { from: toISO(addDays(new Date(), 90)).slice(0, 7) }),
 ];
 

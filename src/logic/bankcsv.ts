@@ -1,5 +1,6 @@
 import { isValidISO, ymOf } from './dates';
-import { monthlyCents, isActive } from './calc';
+import { isActive } from './calc';
+import { matchFix } from './fixmatch';
 import { guessCategory } from './quick';
 import type { CategoryRule, Entry, EntryType, ISODate, PersonIdx, Recurring } from './types';
 
@@ -218,6 +219,8 @@ export interface Candidate {
   duplicate: boolean;
   /** Passt zu einem Fixposten (würde doppelt zählen) */
   fixMatch: boolean;
+  /** Bezeichnung des passenden Fixpostens (nur wenn fixMatch) */
+  fixLabel?: string;
   /** Sieht nach Umbuchung auf ein eigenes Konto aus (Revolut, "Umbuchung") */
   transfer: boolean;
   /** Zahlung von/an den Partner (laut Suchbegriffen) – wird als Ausgleich importiert */
@@ -289,17 +292,18 @@ export function buildCandidates(rows: string[][], headerRow: number, map: Mappin
     let cat = guessCategory(description.toLowerCase(), ctx.categories, ctx.learned, ctx.rules);
     if (type === 'income' ? cat !== 'Gehalt' : cat === 'Gehalt') cat = '';
     const owner = ctx.owner ?? 0;
-    // Passt zu einem Fixposten: gleicher Betrag – oder ein Gehalt, wenn für den Kontoinhaber in diesem Monat
-    // schon ein festes Gehalt hinterlegt ist (der Betrag kann sich z. B. durch eine Erhöhung geändert haben)
-    const fixMatch = !partner && ctx.recurring.some((f) => f.type === type && isActive(f, ym) && (
-      monthlyCents(f) === amountCents || f.amountCents === amountCents ||
-      (type === 'income' && cat === 'Gehalt' && f.category === 'Gehalt' && f.paidBy === owner)
-    ));
+    // Passt zu einem Fixposten (Bezeichnung im Text, gleicher Betrag, Abbuchungsmonat mit ähnlichem Betrag) – oder ein
+    // Gehalt, wenn für den Kontoinhaber in diesem Monat schon ein festes Gehalt gilt (Betrag kann sich geändert haben)
+    const hit = partner ? undefined : matchFix(ctx.recurring, { type, ym, amountCents, text: description.toLowerCase(), category: cat, owner });
+    const salary = partner || hit || type !== 'income' || cat !== 'Gehalt' ? undefined
+      : ctx.recurring.find((f) => f.type === 'income' && f.category === 'Gehalt' && f.paidBy === owner && isActive(f, ym));
+    const fix = hit ?? salary;
+    const fixMatch = !!fix;
     const transfer = !partner && TRANSFER_RE.test(description);
     candidates.push({
       row: i + 1, date, description, amountCents, type,
       category: partner ? 'Ausgleich' : cat || (type === 'income' ? 'Sonstige Einnahmen' : 'Sonstiges'),
-      duplicate, fixMatch, transfer, partner, selected: !duplicate && !fixMatch && !transfer,
+      duplicate, fixMatch, fixLabel: fix?.label, transfer, partner, selected: !duplicate && !fixMatch && !transfer,
     });
   }
   return { candidates, skipped };
