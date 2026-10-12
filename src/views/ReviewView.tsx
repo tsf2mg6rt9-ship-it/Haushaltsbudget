@@ -2,7 +2,7 @@ import { formatDate } from '../logic/dates';
 import type { Flag } from '../logic/review';
 import type { Entry, Settings } from '../logic/types';
 import { deleteEntry, saveEntry } from '../store';
-import { Modal, money } from './ui';
+import { CatDot, Modal, money } from './ui';
 
 export function ReviewView({ entries, flags, settings, onEdit, onClose }: {
   entries: Entry[];
@@ -25,7 +25,7 @@ export function ReviewView({ entries, flags, settings, onEdit, onClose }: {
               <div class="review">
                 <div class="item" style="padding-bottom:2px">
                   <span class="main">
-                    <span class="title">{e.description || '–'}</span>
+                    <span class="title"><CatDot category={e.category} />{e.description || '–'}</span>
                     <span class="sub">{formatDate(e.date)} · {e.category} · {e.type === 'income' ? `Einnahme für ${names[e.paidBy]}` : `${names[e.paidBy]} zahlte`}</span>
                   </span>
                   <span class={e.type === 'income' ? 'amt pos' : 'amt'}>{e.type === 'income' ? '+' : '−'}{money(e.amountCents)}</span>

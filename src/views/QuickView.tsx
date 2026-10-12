@@ -5,7 +5,7 @@ import { parseQuickEntry } from '../logic/quick';
 import type { Entry, Settings } from '../logic/types';
 import { saveEntry, saveSettings, uid } from '../store';
 import { normalizeTags } from '../logic/tags';
-import { money, TagInput, TagList } from './ui';
+import { CatDot, money, TagInput, TagList } from './ui';
 
 export function QuickView({
   settings, entries, allTags, onEditEntry, onNew,
@@ -94,7 +94,7 @@ export function QuickView({
             <li key={e.id}>
               <button class="item" onClick={() => onEditEntry(e)}>
                 <span class="main">
-                  <span class="title">{e.description || e.umbau?.trade || '–'}</span>
+                  <span class="title"><CatDot category={e.category} />{e.description || e.umbau?.trade || '–'}</span>
                   <span class="sub">{formatDate(e.date)} · {e.category} · {names[e.paidBy]}<TagList tags={e.tags} /></span>
                 </span>
                 <span class={e.type === 'income' ? 'amt pos' : 'amt'}>{e.type === 'income' ? '+' : e.type === 'settlement' ? '⇄ ' : '−'}{money(e.amountCents)}</span>

@@ -83,6 +83,8 @@ export interface Settings {
   variableEstimateCents: number | null;
   loan: LoanSettings;
   categoryRules: CategoryRule[];
+  /** Eigene Kategoriefarben (Hex), Rest ergibt sich automatisch */
+  categoryColors: Record<string, string>;
   /** Tags, die neue Buchungen automatisch bekommen (z. B. während eines Urlaubs) */
   activeTags: string[];
   /** Begriffe (z. B. Name des Partners), deren Kontoauszugszeilen beim Import als Ausgleich/Umbuchung gelten und abgewählt werden */

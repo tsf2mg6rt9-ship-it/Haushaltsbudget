@@ -4,10 +4,10 @@ import { buildCandidates, detectHeaderRow, detectMapping, detectMappingFromData,
 import { formatDate } from '../logic/dates';
 import type { Entry, Recurring, Settings } from '../logic/types';
 import { readFileSmart } from '../files';
-import { saveEntries, saveSettings, uid } from '../store';
-import { addRule, suggestMatchTerm } from '../logic/rules';
+import { saveEntries, saveSettings, uid, upsertEntries } from '../store';
+import { addRule, entriesToRecategorize, suggestMatchTerm } from '../logic/rules';
 import { normalizeTags, tagOverview } from '../logic/tags';
-import { Field, Modal, Seg, TagInput, money } from './ui';
+import { CatDot, Field, Modal, Seg, TagInput, money } from './ui';
 
 type Step = 'pick' | 'map' | 'review' | 'done';
 
@@ -77,10 +77,12 @@ export function ImportView({ settings, entries, recurring, onClose }: { settings
     const term = suggestMatchTerm(c.description);
     await saveSettings({ categoryRules: addRule(settings.categoryRules, term, c.category) });
     const low = term.toLowerCase();
+    const past = entriesToRecategorize(entries, [{ match: term, category: c.category }]);
+    if (past.length) await upsertEntries(past);
     let n = 0;
     setCands((cs) => cs.map((x) => (!x.partner && x.description.toLowerCase().includes(low) ? (n++, { ...x, category: c.category }) : x)));
     setTouched((t) => ({ ...t, [i]: false }));
-    setRuleMsg(`Regel gespeichert: „${term}“ → ${c.category} (gilt jetzt für ${n} Zeilen in dieser Liste und künftig immer).`);
+    setRuleMsg(`Regel gespeichert: „${term}“ → ${c.category} (gilt für ${n} Zeilen in dieser Liste${past.length ? `, ${past.length} bereits importierte Buchungen wurden ebenfalls geändert` : ''} und künftig immer).`);
   };
   const chosen = cands.filter((c) => c.selected);
 
@@ -180,7 +182,7 @@ export function ImportView({ settings, entries, recurring, onClose }: { settings
                   <label class="imp-main">
                     <input type="checkbox" checked={c.selected} onChange={(e) => patch(i, { selected: e.currentTarget.checked })} aria-label="Importieren" />
                     <span class="main">
-                      <span class="title">{c.description || '–'}</span>
+                      <span class="title"><CatDot category={c.category} />{c.description || '–'}</span>
                       <span class="sub">{formatDate(c.date)}
                         {c.duplicate && <span class="tag warn">schon vorhanden</span>}
                         {c.fixMatch && <span class="tag warn">Fixposten?</span>}

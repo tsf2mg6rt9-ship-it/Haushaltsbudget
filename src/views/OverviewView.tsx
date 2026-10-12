@@ -1,21 +1,27 @@
-import { useState } from 'preact/hooks';
+import { useContext, useState } from 'preact/hooks';
 import { monthLabel, ymOf } from '../logic/dates';
-import { buildOverview, defaultEndYM } from '../logic/overview';
+import { buildOverview, categoryDetail, defaultEndYM } from '../logic/overview';
+import { formatDate } from '../logic/dates';
 import type { Entry, Recurring, Settings } from '../logic/types';
 import { tagOverview } from '../logic/tags';
-import { money, Seg } from './ui';
+import { CatDot, ColorsCtx, Modal, money, Seg } from './ui';
+import { colorForCategory } from '../logic/colors';
 
 type Range = 'all' | '3' | '6' | '12';
 
-export function OverviewView({ entries, recurring, settings }: { entries: Entry[]; recurring: Recurring[]; settings: Settings }) {
+export function OverviewView({ entries, recurring, settings, onEditEntry }: { entries: Entry[]; recurring: Recurring[]; settings: Settings; onEditEntry: (e: Entry) => void }) {
   const [range, setRange] = useState<Range>('all');
   const [includeUmbau, setIncludeUmbau] = useState(false);
   const [excluded, setExcluded] = useState<string[]>([]);
+  const colors = useContext(ColorsCtx);
+  const [openCat, setOpenCat] = useState<string | null>(null);
   const [who, setWho] = useState<'all' | '0' | '1'>('all');
   const allTags = tagOverview(entries);
   const names = settings.names;
   const now = ymOf(new Date());
-  const o = buildOverview(entries, recurring, { endYM: defaultEndYM(entries, now), months: range === 'all' ? 'all' : +range, includeUmbau, excludeTags: excluded, person: who === 'all' ? null : (+who as 0 | 1) });
+  const opts = { endYM: defaultEndYM(entries, now), months: range === 'all' ? ('all' as const) : +range, includeUmbau, excludeTags: excluded, person: who === 'all' ? null : (+who as 0 | 1) };
+  const o = buildOverview(entries, recurring, opts);
+  const detail = openCat ? categoryDetail(entries, recurring, o, openCat, opts) : null;
   const maxCat = Math.max(1, ...o.byCategory.map((c) => c.total));
   const hasUmbau = entries.some((e) => e.umbau);
 
@@ -60,18 +66,19 @@ export function OverviewView({ entries, recurring, settings }: { entries: Entry[
 
           <div class="card">
             <div class="lbl">Wofür geht das Geld drauf? (Ø pro Monat)</div>
-            <div class="legend"><span><i class="sw fix" /> fix</span><span><i class="sw var" /> variabel</span></div>
+            <div class="legend"><span><i class="sw solid" /> fix (kräftig)</span><span><i class="sw light" /> variabel (heller)</span></div>
             {o.byCategory.length === 0 && <p class="muted">Keine Ausgaben.</p>}
             {o.byCategory.map((c) => (
-              <div class="bar-row wide-label">
-                <span>{c.category}</span>
-                <div class="bar two">
+              <button class="bar-row wide-label btn" onClick={() => setOpenCat(c.category)} aria-label={`${c.category} anzeigen`}>
+                <span class="catname"><CatDot category={c.category} />{c.category}</span>
+                <div class="bar two" style={`color:${colorForCategory(c.category, colors)}`}>
                   <i class="fix" style={`width:${(c.fixedTotal / maxCat) * 100}%`} />
                   <i class="var" style={`width:${(c.variableTotal / maxCat) * 100}%`} />
                 </div>
                 <span class="num">{money(c.avg)} <small class="muted">{o.expense.total ? Math.round((c.total / o.expense.total) * 100) : 0} %</small></span>
-              </div>
+              </button>
             ))}
+            <p class="hint">Tippe auf eine Kategorie, um zu sehen, was darin steckt.</p>
             <p class="hint">Essen und Trinken findest du unter „Lebensmittel“ (Einkauf) und „Restaurant“, Freizeit unter „Freizeit“. Kategorien lassen sich unter „Mehr“ anpassen.</p>
           </div>
 
@@ -107,6 +114,35 @@ export function OverviewView({ entries, recurring, settings }: { entries: Entry[
             </table>
           </div>
         </>
+      )}
+      {openCat && detail && (
+        <Modal title={openCat} onClose={() => setOpenCat(null)}>
+          <p class="big"><strong>{money(detail.total)}</strong> im Zeitraum <span class="muted">({monthLabel(o.startYM)} bis {monthLabel(o.endYM)})</span></p>
+          {detail.fixed.length > 0 && (
+            <>
+              <div class="lbl">Fixposten</div>
+              <table class="grid"><tbody>
+                {detail.fixed.map((f) => <tr><td>{f.label}<br /><small class="muted">{f.months} Monat{f.months === 1 ? '' : 'e'}</small></td><td>{money(f.total)}</td></tr>)}
+              </tbody></table>
+            </>
+          )}
+          {detail.entries.length > 0 && (
+            <>
+              <div class="lbl" style="margin-top:12px">Buchungen ({detail.entries.length})</div>
+              <ul class="list">
+                {detail.entries.map(({ entry: e, amount }) => (
+                  <li key={e.id}>
+                    <button class="item" onClick={() => onEditEntry(e)}>
+                      <span class="main"><span class="title">{e.description || e.umbau?.trade || '–'}</span><span class="sub">{formatDate(e.date)} · {names[e.paidBy]}</span></span>
+                      <span class="amt">{money(amount)}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+          {detail.fixed.length === 0 && detail.entries.length === 0 && <p class="muted">Nichts in dieser Kategorie.</p>}
+        </Modal>
       )}
     </>
   );

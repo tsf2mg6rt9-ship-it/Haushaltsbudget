@@ -1,5 +1,6 @@
-import type { ComponentChildren } from 'preact';
-import { useEffect, useState } from 'preact/hooks';
+import { createContext, type ComponentChildren } from 'preact';
+import { useContext, useEffect, useState } from 'preact/hooks';
+import { colorForCategory } from '../logic/colors';
 import { normalizeTags, parseTagInput } from '../logic/tags';
 import { formatMoney } from '../logic/money';
 import type { Settlement } from '../logic/types';
@@ -94,4 +95,12 @@ export function TagInput({ value, onChange, suggestions }: { value: string[]; on
       )}
     </div>
   );
+}
+
+/** Eigene Kategoriefarben (vom App-Wurzelelement bereitgestellt) */
+export const ColorsCtx = createContext<Record<string, string>>({});
+
+export function CatDot({ category }: { category: string }) {
+  const colors = useContext(ColorsCtx);
+  return <i class="catdot" style={`background:${colorForCategory(category, colors)}`} aria-hidden="true" />;
 }

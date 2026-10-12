@@ -11,7 +11,7 @@ import { EntryForm, RecurringForm } from './views/forms';
 import { MonthView } from './views/MonthView';
 import { OverviewView } from './views/OverviewView';
 import { TagsView } from './views/TagsView';
-import { Seg } from './views/ui';
+import { ColorsCtx, Seg } from './views/ui';
 import { tagOverview } from './logic/tags';
 import { findFlags } from './logic/review';
 import { addRule, entriesToRecategorize } from './logic/rules';
@@ -57,6 +57,7 @@ export function App() {
   const flags = findFlags(entries, recurring, settings.importIgnoreTerms);
 
   return (
+    <ColorsCtx.Provider value={settings.categoryColors}>
     <div class="app">
       <main>
         {dbError && !IS_DEMO && <div class="banner error" role="alert">{dbError}</div>}
@@ -86,7 +87,7 @@ export function App() {
             <Seg value={monthMode} onChange={setMonthMode} options={[{ value: 'month', label: 'Monat' }, { value: 'overview', label: 'Überblick' }, { value: 'tags', label: 'Tags' }]} />
             <div style="height:12px" />
             {monthMode === 'month' && <MonthView ym={ym} setYm={setYm} settings={settings} entries={entries} recurring={recurring} onEditEntry={editEntry} onEditRecurring={editRec} onNewSettlement={editEntry} flags={flags} />}
-            {monthMode === 'overview' && <section><h1>Überblick</h1><OverviewView entries={entries} recurring={recurring} settings={settings} /></section>}
+            {monthMode === 'overview' && <section><h1>Überblick</h1><OverviewView entries={entries} recurring={recurring} settings={settings} onEditEntry={editEntry} /></section>}
             {monthMode === 'tags' && <section><h1>Tags</h1><TagsView entries={entries} settings={settings} onEditEntry={editEntry} /></section>}
           </>
         )}
@@ -139,5 +140,6 @@ export function App() {
         />
       )}
     </div>
+    </ColorsCtx.Provider>
   );
 }

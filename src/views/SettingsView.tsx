@@ -4,6 +4,8 @@ import { entriesCSV, recurringCSV } from '../logic/csv';
 import type { Entry, Recurring, Settings } from '../logic/types';
 import { isIOS, isStandalone, readFileText, saveFile } from '../files';
 import { replaceAll, saveSettings, upsertEntries } from '../store';
+import { colorForCategory, PALETTE } from '../logic/colors';
+import { CatDot } from './ui';
 import { addRule, entriesToRecategorize } from '../logic/rules';
 import { hasNoData, IS_DEMO, loadDemo } from '../demo';
 import { ImportView } from './ImportView';
@@ -16,6 +18,7 @@ export function SettingsView({ settings, entries, recurring }: { settings: Setti
   const [cats, setCats] = useState(settings.categories.join('\n'));
   const [msg, setMsg] = useState('');
   const [importing, setImporting] = useState(false);
+  const [openColor, setOpenColor] = useState<string | null>(null);
   const [ruleMatch, setRuleMatch] = useState('');
   const [ruleCat, setRuleCat] = useState(settings.categories[0] ?? 'Sonstiges');
   const [persisted, setPersisted] = useState<boolean | null>(null);
@@ -85,6 +88,30 @@ export function SettingsView({ settings, entries, recurring }: { settings: Setti
       </div>
 
       <div class="card">
+        <div class="lbl">Kategoriefarben</div>
+        <p class="muted">Jede Kategorie hat eine Farbe, die als Punkt neben den Buchungen erscheint. Tippe eine Kategorie an, um die Farbe zu ändern – sie gilt sofort für alle Buchungen, auch für bereits importierte.</p>
+        <ul class="list">
+          {settings.categories.map((c) => (
+            <li>
+              <button class="item" onClick={() => setOpenColor(openColor === c ? null : c)} aria-expanded={openColor === c}>
+                <span class="main"><span class="title"><CatDot category={c} />{c}</span></span>
+                <span class="muted">{openColor === c ? '▲' : '▼'}</span>
+              </button>
+              {openColor === c && (
+                <div class="colorrow">
+                  {PALETTE.map((hex) => (
+                    <button class={`swatch ${colorForCategory(c, settings.categoryColors).toLowerCase() === hex.toLowerCase() ? 'on' : ''}`} style={`background:${hex}`} aria-label={`Farbe ${hex}`}
+                      onClick={() => saveSettings({ categoryColors: { ...settings.categoryColors, [c]: hex } })} />
+                  ))}
+                  {settings.categoryColors[c] && <button class="link" onClick={() => { const { [c]: _drop, ...rest } = settings.categoryColors; void _drop; saveSettings({ categoryColors: rest }); }}>Zurücksetzen</button>}
+                </div>
+              )}
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      <div class="card">
         <div class="lbl">Händler-Regeln für Kategorien</div>
         <p class="muted">Enthält eine Beschreibung den Suchbegriff, bekommt sie immer diese Kategorie – in der Schnelleingabe und beim Import. Regeln haben Vorrang vor allem anderen; bei mehreren Treffern gilt der längste Begriff.</p>
         {settings.categoryRules.length === 0 && <p class="hint">Noch keine Regeln. Beim Import legst du Regeln direkt in der Prüfliste an, wenn du eine Kategorie änderst.</p>}
@@ -105,7 +132,16 @@ export function SettingsView({ settings, entries, recurring }: { settings: Setti
           </label>
         </div>
         <div class="actions">
-          <button class="primary" disabled={!ruleMatch.trim()} onClick={async () => { await saveSettings({ categoryRules: addRule(settings.categoryRules, ruleMatch, ruleCat) }); setRuleMatch(''); flash('Regel gespeichert.'); }}>Regel hinzufügen</button>
+          <button class="primary" disabled={!ruleMatch.trim()} onClick={async () => {
+            const rule = { match: ruleMatch.trim(), category: ruleCat };
+            await saveSettings({ categoryRules: addRule(settings.categoryRules, rule.match, rule.category) });
+            setRuleMatch('');
+            const past = entriesToRecategorize(entries, [rule]);
+            if (past.length > 0 && confirm(`Regel gespeichert. ${past.length} bestehende Buchung${past.length === 1 ? '' : 'en'} ebenfalls auf „${rule.category}“ setzen?`)) {
+              await upsertEntries(past);
+              flash(`Regel gespeichert, ${past.length} bestehende Buchungen umkategorisiert.`);
+            } else flash('Regel gespeichert.');
+          }}>Regel hinzufügen</button>
           {settings.categoryRules.length > 0 && (
             <button onClick={async () => {
               const changed = entriesToRecategorize(entries, settings.categoryRules);

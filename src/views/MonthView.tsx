@@ -7,7 +7,9 @@ import type { Entry, Line, Recurring, Settings } from '../logic/types';
 import type { Flag } from '../logic/review';
 import { saveFile } from '../files';
 import { newSettlement } from '../defaults';
-import { money, SettlementText, TagList } from './ui';
+import { CatDot, ColorsCtx, money, SettlementText, TagList } from './ui';
+import { colorForCategory } from '../logic/colors';
+import { useContext } from 'preact/hooks';
 
 const FLAG_LABEL = { gehalt: 'Gehalt doppelt?', fix: 'Fixposten doppelt?', dublette: 'Dublette?', partner: 'Ausgleich?', umbuchung: 'Umbuchung?' } as const;
 
@@ -25,10 +27,13 @@ export function MonthView({
   onEditRecurring: (r: Recurring) => void;
 }) {
   const [includeUmbau, setIncludeUmbau] = useState(true);
+  const [catFilter, setCatFilter] = useState<string | null>(null);
+  const colors = useContext(ColorsCtx);
   const names = settings.names;
   const s = summarizeMonth(ym, entries, recurring, { includeUmbau });
   const total = cumulativeSettlement(entries, recurring, ym);
   const showTotal = total.amountCents !== s.settlement.amountCents || total.from !== s.settlement.from;
+  const shown = catFilter ? s.lines.filter((l) => l.category === catFilter) : s.lines;
   const maxCat = Math.max(1, ...s.byCategory.map((c) => c.cents));
   const hasUmbau = entries.some((e) => e.umbau);
 
@@ -90,24 +95,32 @@ export function MonthView({
         <div class="card">
           <div class="lbl">Ausgaben nach Kategorie</div>
           {s.byCategory.map((c) => (
-            <div class="bar-row">
-              <span>{c.category}</span>
-              <div class="bar"><i style={`width:${(c.cents / maxCat) * 100}%`} /></div>
+            <button class={`bar-row btn ${catFilter === c.category ? 'sel' : ''}`} aria-pressed={catFilter === c.category}
+              onClick={() => setCatFilter(catFilter === c.category ? null : c.category)}>
+              <span class="catname"><CatDot category={c.category} />{c.category}</span>
+              <div class="bar"><i style={`width:${(c.cents / maxCat) * 100}%;background:${colorForCategory(c.category, colors)}`} /></div>
               <span class="num">{money(c.cents)}</span>
-            </div>
+            </button>
           ))}
+          <p class="hint">Tippe auf eine Kategorie, um alle zugeordneten Posten zu sehen.</p>
         </div>
       )}
 
       <div class="card">
-        <div class="lbl">Posten im Monat ({s.lines.length})</div>
+        <div class="lbl">Posten im Monat ({shown.length})</div>
+        {catFilter && (
+          <div class="chips" style="margin-bottom:6px">
+            <button class="chip on-chip" onClick={() => setCatFilter(null)}>{catFilter} · {money(s.byCategory.find((c) => c.category === catFilter)?.cents ?? 0)} ✕</button>
+          </div>
+        )}
+        {catFilter && shown.length === 0 && <p class="muted">In diesem Monat gibt es nichts in „{catFilter}“.</p>}
         {s.lines.length === 0 && <p class="muted">Noch nichts eingetragen. Fixkosten legst du im Tab „Fix“ an, Ausgaben über „Buchen“.</p>}
         <ul class="list">
-          {s.lines.map((l) => (
+          {shown.map((l) => (
             <li key={l.key}>
               <button class="item" onClick={() => open(l)}>
                 <span class="main">
-                  <span class="title">{l.type === 'settlement' ? `Ausgleich: ${names[l.paidBy]} → ${names[l.paidBy === 0 ? 1 : 0]}` : l.description || l.umbau?.trade || '–'}</span>
+                  <span class="title"><CatDot category={l.category} />{l.type === 'settlement' ? `Ausgleich: ${names[l.paidBy]} → ${names[l.paidBy === 0 ? 1 : 0]}` : l.description || l.umbau?.trade || '–'}</span>
                   <span class="sub">
                     {l.source === 'recurring' ? 'Fix' : l.date ? formatDate(l.date) : ''} · {l.category}
                     {l.type === 'expense' && ` · ${names[l.paidBy]} zahlte · ${l.share1Pct === 50 ? '50/50' : `${l.share1Pct}/${100 - l.share1Pct}`}`}

@@ -3,7 +3,7 @@ import { formatDate } from '../logic/dates';
 import { filterByTags, hasTag, renameTag, summarizeEntries, tagOverview } from '../logic/tags';
 import type { Entry, Settings } from '../logic/types';
 import { upsertEntries } from '../store';
-import { money, TagList } from './ui';
+import { CatDot, money, TagList } from './ui';
 
 export function TagsView({ entries, settings, onEditEntry }: { entries: Entry[]; settings: Settings; onEditEntry: (e: Entry) => void }) {
   const [selected, setSelected] = useState<string[]>([]);
@@ -65,7 +65,7 @@ export function TagsView({ entries, settings, onEditEntry }: { entries: Entry[];
                 <li key={e.id}>
                   <button class="item" onClick={() => onEditEntry(e)}>
                     <span class="main">
-                      <span class="title">{e.description || e.umbau?.trade || '–'}</span>
+                      <span class="title"><CatDot category={e.category} />{e.description || e.umbau?.trade || '–'}</span>
                       <span class="sub">{formatDate(e.date)} · {e.category} · {names[e.paidBy]}<TagList tags={(e.tags ?? []).filter((t) => !sel.some((s) => s.toLowerCase() === t.toLowerCase()))} /></span>
                     </span>
                     <span class={e.type === 'income' ? 'amt pos' : 'amt'}>{e.type === 'income' ? '+' : e.type === 'settlement' ? '⇄ ' : '−'}{money(e.amountCents)}</span>

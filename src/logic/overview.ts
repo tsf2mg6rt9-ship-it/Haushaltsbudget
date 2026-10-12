@@ -132,3 +132,41 @@ export function buildOverview(allEntries: Entry[], recurring: Recurring[], opts:
     },
   };
 }
+
+export interface CategoryDetail {
+  /** Fixposten dieser Kategorie, über den Zeitraum zusammengefasst */
+  fixed: { id: string; label: string; months: number; total: number }[];
+  /** Einzelne Buchungen dieser Kategorie (Betrag = Anteil der gewählten Person bzw. voller Betrag) */
+  entries: { entry: Entry; amount: number }[];
+  total: number;
+}
+
+/** Was steckt hinter einer Kategorie im Überblick? Nutzt dieselben Filter wie `buildOverview`. */
+export function categoryDetail(allEntries: Entry[], recurring: Recurring[], o: Overview, category: string, opts: OverviewOptions): CategoryDetail {
+  const person = opts.person ?? null;
+  const ex = (opts.excludeTags ?? []).map((t) => t.toLowerCase());
+  const entries = ex.length ? allEntries.filter((e) => !(e.tags ?? []).some((t) => ex.includes(t.toLowerCase()))) : allEntries;
+  const share = (cents: number, pct: number) => (person === null ? cents : splitCents(cents, pct)[person]);
+  const fixed = new Map<string, { id: string; label: string; months: number; total: number }>();
+  const list: { entry: Entry; amount: number }[] = [];
+  for (let i = 0; i < o.n; i++) {
+    const ym = addMonths(o.startYM, i);
+    const s = summarizeMonth(ym, entries, recurring, { includeUmbau: opts.includeUmbau });
+    for (const l of s.lines) {
+      if (l.type !== 'expense' || l.category !== category) continue;
+      const amount = share(l.amountCents, l.share1Pct);
+      if (amount === 0) continue;
+      if (l.source === 'recurring') {
+        const cur = fixed.get(l.id) ?? { id: l.id, label: l.description, months: 0, total: 0 };
+        cur.months++; cur.total += amount;
+        fixed.set(l.id, cur);
+      } else {
+        const e = entries.find((x) => x.id === l.id);
+        if (e) list.push({ entry: e, amount });
+      }
+    }
+  }
+  list.sort((a, b) => (a.entry.date < b.entry.date ? 1 : -1));
+  const f = [...fixed.values()].sort((a, b) => b.total - a.total);
+  return { fixed: f, entries: list, total: f.reduce((a, x) => a + x.total, 0) + list.reduce((a, x) => a + x.amount, 0) };
+}

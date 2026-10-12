@@ -1,5 +1,6 @@
 import { isValidISO, isValidYM } from './dates';
 import { normalizeTags } from './tags';
+import { isHexColor } from './colors';
 import type { BackupFile, CategoryRule, Entry, LoanSettings, Recurring, Settings } from './types';
 
 export const DEFAULT_CATEGORIES = [
@@ -18,6 +19,7 @@ export const DEFAULT_SETTINGS: Settings = {
   loan: DEFAULT_LOAN,
   importIgnoreTerms: [],
   categoryRules: [],
+  categoryColors: {},
   activeTags: [],
   lastBackupAt: null,
   installHintDismissed: false,
@@ -128,6 +130,7 @@ export function parseBackup(text: string): ParseResult {
     loan: cleanLoan(s.loan),
     activeTags: Array.isArray(s.activeTags) ? normalizeTags(s.activeTags.filter((t): t is string => typeof t === 'string')) : [],
     categoryRules: cleanRules(s.categoryRules),
+    categoryColors: isObj(s.categoryColors) ? Object.fromEntries(Object.entries(s.categoryColors).filter(([, c]) => isHexColor(c))) as Record<string, string> : {},
     importIgnoreTerms: Array.isArray(s.importIgnoreTerms) ? s.importIgnoreTerms.filter((t): t is string => typeof t === 'string' && t.trim() !== '') : [],
     lastBackupAt: typeof s.lastBackupAt === 'string' ? s.lastBackupAt : null,
     installHintDismissed: s.installHintDismissed === true,

@@ -47,3 +47,40 @@ describe('Prüfung bestehender Buchungen', () => {
     expect(findFlags([s, ok, u], [gehalt, rec({})], ['Ghezzi']).size).toBe(0);
   });
 });
+
+import { colorForCategory, isHexColor, PALETTE } from '../src/logic/colors';
+import { categoryDetail, buildOverview } from '../src/logic/overview';
+import { parseBackup, makeBackup, DEFAULT_SETTINGS } from '../src/logic/backup';
+
+describe('Kategoriefarben', () => {
+  it('Standardfarbe, eigene Farbe, stabile Farbe für unbekannte Kategorien', () => {
+    expect(isHexColor(colorForCategory('Wohnen'))).toBe(true);
+    expect(colorForCategory('Wohnen', { Wohnen: '#112233' })).toBe('#112233');
+    expect(colorForCategory('Wohnen', { Wohnen: 'kaputt' })).toBe(colorForCategory('Wohnen'));
+    expect(colorForCategory('Haustier')).toBe(colorForCategory('Haustier'));
+    expect(PALETTE).toContain(colorForCategory('Haustier'));
+  });
+  it('Backup behält gültige Farben und verwirft ungültige', () => {
+    const r = parseBackup(JSON.stringify(makeBackup({ ...DEFAULT_SETTINGS, categoryColors: { Wohnen: '#abcdef', Kaputt: 'rot' } }, [], [])));
+    expect(r.ok && r.data.settings.categoryColors).toEqual({ Wohnen: '#abcdef' });
+  });
+});
+
+describe('Überblick: Was steckt in einer Kategorie?', () => {
+  const es = [e({ date: '2026-02-05', category: 'Restaurant', amountCents: 4000, description: 'Pizza' }), e({ date: '2026-03-05', category: 'Restaurant', amountCents: 6000, description: 'Sushi', share1Pct: 100 }), e({ date: '2026-03-06', category: 'Lebensmittel', amountCents: 999 })];
+  const recs = [rec({ category: 'Restaurant', label: 'Essens-Abo', amountCents: 1000 })];
+  const opts = { endYM: '2026-03', months: 'all' as const, includeUmbau: true };
+  it('Fixposten zusammengefasst, Buchungen einzeln, Summe passt zur Kategorie', () => {
+    const o = buildOverview(es, recs, opts);
+    const d = categoryDetail(es, recs, o, 'Restaurant', opts);
+    expect(d.fixed).toEqual([{ id: recs[0].id, label: 'Essens-Abo', months: 2, total: 2000 }]);
+    expect(d.entries.map((x) => x.entry.description)).toEqual(['Sushi', 'Pizza']);
+    expect(d.total).toBe(o.byCategory.find((c) => c.category === 'Restaurant')!.total);
+  });
+  it('mit Person: nur der eigene Anteil', () => {
+    const o = buildOverview(es, [], { ...opts, person: 1 });
+    const d = categoryDetail(es, [], o, 'Restaurant', { ...opts, person: 1 });
+    expect(d.entries).toHaveLength(1); // Sushi gehört zu 100 % Person 1 -> Anteil Person 2 = 0
+    expect(d.total).toBe(2000);
+  });
+});
