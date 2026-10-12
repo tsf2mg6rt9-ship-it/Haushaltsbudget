@@ -31,6 +31,8 @@ export interface Entry {
   note?: string;
   /** Freie Schlagwörter, z. B. "Urlaub Frankreich" oder "Geburtstag" */
   tags?: string[];
+  /** Kennung des Imports (Zeitstempel), aus dem die Buchung stammt – erlaubt, einen ganzen Import rückgängig zu machen */
+  importId?: string;
   /** Vom Nutzer als in Ordnung bestätigt – wird nicht mehr als verdächtig markiert */
   checked?: boolean;
 }

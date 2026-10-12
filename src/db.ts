@@ -66,6 +66,17 @@ export async function replaceAll(settings: unknown, entries: { id: string }[], r
   });
 }
 
+export async function removeMany(store: 'entries' | 'recurring', ids: string[]): Promise<void> {
+  const db = await open();
+  await new Promise<void>((resolve, reject) => {
+    const t = db.transaction(store, 'readwrite');
+    ids.forEach((id) => t.objectStore(store).delete(id));
+    t.oncomplete = () => resolve();
+    t.onerror = () => reject(t.error);
+    t.onabort = () => reject(t.error);
+  });
+}
+
 export async function putMany(store: 'entries' | 'recurring', values: { id: string }[]): Promise<void> {
   const db = await open();
   await new Promise<void>((resolve, reject) => {

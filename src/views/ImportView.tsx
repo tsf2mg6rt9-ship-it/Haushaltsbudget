@@ -19,7 +19,7 @@ export function ImportView({ settings, entries, recurring, onClose }: { settings
   const [headerRow, setHeaderRow] = useState(0); // -1 = keine Kopfzeile
   const [map, setMap] = useState<Mapping>({ date: null, amount: null, debit: null, credit: null, text: [], invert: false });
   const [owner, setOwner] = useState<0 | 1>(0);
-  const [share, setShare] = useState(50);
+  const [share, setShare] = useState<number | null>(null);
   const [cands, setCands] = useState<Candidate[]>([]);
   const [skipped, setSkipped] = useState(0);
   const [ignore, setIgnore] = useState(settings.importIgnoreTerms.join(', '));
@@ -88,15 +88,17 @@ export function ImportView({ settings, entries, recurring, onClose }: { settings
 
   const doImport = async () => {
     const partnerIdx = owner === 0 ? 1 : 0;
+    const importId = new Date().toISOString();
+    const pct = share ?? 50;
     const list: Entry[] = chosen.map((c) => c.partner
       ? {
         // Zahlung von/an den Partner = Ausgleich (weder Einnahme noch Ausgabe)
         id: uid(), date: c.date, description: c.description, category: 'Ausgleich', amountCents: c.amountCents, type: 'settlement' as const,
-        share1Pct: 50, paidBy: c.type === 'income' ? (partnerIdx as 0 | 1) : owner, note: 'Import Kontoauszug',
+        share1Pct: 50, paidBy: c.type === 'income' ? (partnerIdx as 0 | 1) : owner, note: 'Import Kontoauszug', importId,
       }
       : {
         id: uid(), date: c.date, description: c.description, category: c.category, amountCents: c.amountCents, type: c.type,
-        share1Pct: share, paidBy: owner, note: 'Import Kontoauszug', ...(tags.length ? { tags: normalizeTags(tags) } : {}),
+        share1Pct: pct, paidBy: owner, note: 'Import Kontoauszug', importId, ...(tags.length ? { tags: normalizeTags(tags) } : {}),
       });
     await saveEntries(list);
     setImported(list.length); setStep('done');
@@ -135,9 +137,9 @@ export function ImportView({ settings, entries, recurring, onClose }: { settings
           <div class="lbl" style="margin-top:14px">Wem gehört das Konto?</div>
           <Seg value={owner} onChange={setOwner} options={[{ value: 0, label: names[0] }, { value: 1, label: names[1] }]} />
           <div class="hint">Diese Person gilt als „bezahlt von“ bzw. als Empfänger der Einnahmen.</div>
-          <div class="lbl" style="margin-top:14px">Aufteilung der Ausgaben</div>
-          <Seg value={share} onChange={setShare} options={[{ value: 50, label: '50/50' }, { value: 100, label: `nur ${names[0]}` }, { value: 0, label: `nur ${names[1]}` }]} />
-          <div class="hint">Gilt für alle importierten Ausgaben; einzelne lassen sich danach im Monat ändern.</div>
+          <div class="lbl" style="margin-top:14px">Aufteilung der Ausgaben – bitte wählen</div>
+          <Seg<number> value={share ?? -1} onChange={(v: number) => setShare(v)} options={[{ value: 50, label: '50/50' }, { value: 100, label: `nur ${names[0]}` }, { value: 0, label: `nur ${names[1]}` }]} />
+          <div class="hint">Gilt für alle importierten Ausgaben. Für ein Privatkonto passt „nur {names[owner]}“. Spätere Änderungen gehen gesammelt unter „Buchungen“ (Tab „Monat“).</div>
 
           <div class="field">
             <span class="lbl">Tags für alle importierten Buchungen (optional)</span>
@@ -161,7 +163,7 @@ export function ImportView({ settings, entries, recurring, onClose }: { settings
           <div class="actions">
             <button onClick={() => setStep('pick')}>Zurück</button>
             <span class="spacer" />
-            <button class="primary" disabled={!mapOk} onClick={toReview}>Weiter</button>
+            <button class="primary" disabled={!mapOk || share === null} onClick={toReview}>Weiter</button>
           </div>
         </>
       )}

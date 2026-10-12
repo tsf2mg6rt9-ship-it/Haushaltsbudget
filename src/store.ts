@@ -75,6 +75,12 @@ export const upsertEntries = (es: Entry[]) =>
     set({ entries: state.entries.map((e) => byId.get(e.id) ?? e) });
     await db.putMany('entries', es);
   });
+export const deleteEntries = (ids: string[]) =>
+  guard(async () => {
+    const drop = new Set(ids);
+    set({ entries: state.entries.filter((x) => !drop.has(x.id)) });
+    await db.removeMany('entries', ids);
+  });
 export const deleteEntry = (id: string) =>
   guard(async () => {
     set({ entries: state.entries.filter((x) => x.id !== id) });

@@ -78,6 +78,7 @@ function cleanEntry(v: unknown): Entry | null {
   }
   if (typeof v.note === 'string' && v.note) e.note = v.note;
   if (v.checked === true) e.checked = true;
+  if (typeof v.importId === 'string' && v.importId) e.importId = v.importId;
   if (Array.isArray(v.tags)) {
     const tags = normalizeTags(v.tags.filter((t): t is string => typeof t === 'string'));
     if (tags.length) e.tags = tags;
