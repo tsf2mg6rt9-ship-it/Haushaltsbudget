@@ -1,5 +1,6 @@
 import type { ComponentChildren } from 'preact';
-import { useEffect } from 'preact/hooks';
+import { useEffect, useState } from 'preact/hooks';
+import { normalizeTags, parseTagInput } from '../logic/tags';
 import { formatMoney } from '../logic/money';
 import type { Settlement } from '../logic/types';
 
@@ -58,3 +59,39 @@ export function SettlementText({ s, names }: { s: Settlement; names: [string, st
 }
 
 export const money = formatMoney;
+
+export function TagList({ tags }: { tags?: string[] }) {
+  if (!tags || tags.length === 0) return null;
+  return <>{tags.map((t) => <span class="tagpill">#{t}</span>)}</>;
+}
+
+export function TagInput({ value, onChange, suggestions }: { value: string[]; onChange: (v: string[]) => void; suggestions: string[] }) {
+  const [text, setText] = useState('');
+  const commit = () => {
+    const add = parseTagInput(text);
+    if (add.length) onChange(normalizeTags([...value, ...add]));
+    setText('');
+  };
+  const free = suggestions.filter((s) => !value.some((v) => v.toLowerCase() === s.toLowerCase())).slice(0, 8);
+  return (
+    <div>
+      {value.length > 0 && (
+        <div class="chips" style="margin-bottom:8px">
+          {value.map((t) => (
+            <button type="button" class="chip on-chip" onClick={() => onChange(value.filter((x) => x !== t))} aria-label={`Tag ${t} entfernen`}>#{t} ✕</button>
+          ))}
+        </div>
+      )}
+      <input
+        list="taglist" value={text} autocomplete="off" placeholder="z. B. Urlaub Frankreich"
+        onInput={(e) => setText(e.currentTarget.value)} onBlur={commit}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); commit(); } }}
+      />
+      {free.length > 0 && (
+        <div class="chips" style="margin-top:8px">
+          {free.map((t) => <button type="button" class="chip" onClick={() => onChange(normalizeTags([...value, t]))}>+ {t}</button>)}
+        </div>
+      )}
+    </div>
+  );
+}

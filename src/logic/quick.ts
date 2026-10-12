@@ -1,5 +1,6 @@
 import { addDays, fromISO, toISO } from './dates';
 import { parseMoney } from './money';
+import { normalizeTags } from './tags';
 import type { EntryType, ISODate, PersonIdx } from './types';
 
 export interface QuickContext {
@@ -18,6 +19,8 @@ export interface QuickResult {
   type: EntryType;
   share1Pct: number;
   paidBy: PersonIdx;
+  /** Hashtags aus der Eingabe (#Urlaub oder "Hashtag Urlaub") */
+  tags: string[];
   /** Was erkannt wurde (für die Vorschau) */
   recognized: { amount: boolean; date: boolean; split: boolean; payer: boolean; category: boolean };
 }
@@ -77,6 +80,9 @@ export function parseQuickEntry(input: string, ctx: QuickContext): QuickResult {
   const [n1, n2] = ctx.names.map((n) => n.trim().toLowerCase());
   const today = fromISO(ctx.today);
   let text = ' ' + input.trim().replace(/\s+/g, ' ') + ' ';
+  const tags: string[] = [];
+  const grab = (_: string, t: string) => { tags.push(t.replace(/-/g, ' ')); return ' '; };
+  text = text.replace(/#([\wäöüÄÖÜß-]+)/g, grab).replace(/\bhashtag\s+([\wäöüÄÖÜß-]+)/gi, grab);
   const rec = { amount: false, date: false, split: false, payer: false, category: false };
 
   // ---- Datum ----
@@ -213,5 +219,5 @@ export function parseQuickEntry(input: string, ctx: QuickContext): QuickResult {
   rec.category = category !== '';
   if (!category) category = type === 'income' ? 'Sonstige Einnahmen' : 'Sonstiges';
 
-  return { amountCents, date, description, category, type, share1Pct, paidBy, recognized: rec };
+  return { amountCents, date, description, category, type, share1Pct, paidBy, tags: normalizeTags(tags), recognized: rec };
 }

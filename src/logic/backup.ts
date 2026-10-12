@@ -1,4 +1,5 @@
 import { isValidISO, isValidYM } from './dates';
+import { normalizeTags } from './tags';
 import type { BackupFile, Entry, LoanSettings, Recurring, Settings } from './types';
 
 export const DEFAULT_CATEGORIES = [
@@ -16,6 +17,7 @@ export const DEFAULT_SETTINGS: Settings = {
   variableEstimateCents: null,
   loan: DEFAULT_LOAN,
   importIgnoreTerms: [],
+  activeTags: [],
   lastBackupAt: null,
   installHintDismissed: false,
 };
@@ -66,6 +68,10 @@ function cleanEntry(v: unknown): Entry | null {
     e.umbau = { trade: str(v.umbau.trade), invoiceNo: str(v.umbau.invoiceNo) || undefined, paid: v.umbau.paid !== false };
   }
   if (typeof v.note === 'string' && v.note) e.note = v.note;
+  if (Array.isArray(v.tags)) {
+    const tags = normalizeTags(v.tags.filter((t): t is string => typeof t === 'string'));
+    if (tags.length) e.tags = tags;
+  }
   return e;
 }
 
@@ -113,6 +119,7 @@ export function parseBackup(text: string): ParseResult {
     startBalanceCents: int(s.startBalanceCents) ?? 0,
     variableEstimateCents: int(s.variableEstimateCents),
     loan: cleanLoan(s.loan),
+    activeTags: Array.isArray(s.activeTags) ? normalizeTags(s.activeTags.filter((t): t is string => typeof t === 'string')) : [],
     importIgnoreTerms: Array.isArray(s.importIgnoreTerms) ? s.importIgnoreTerms.filter((t): t is string => typeof t === 'string' && t.trim() !== '') : [],
     lastBackupAt: typeof s.lastBackupAt === 'string' ? s.lastBackupAt : null,
     installHintDismissed: s.installHintDismissed === true,

@@ -4,7 +4,7 @@ import { summarizeMonth } from '../logic/calc';
 import { monthCSV } from '../logic/csv';
 import type { Entry, Line, Recurring, Settings } from '../logic/types';
 import { saveFile } from '../files';
-import { money, SettlementText } from './ui';
+import { money, SettlementText, TagList } from './ui';
 
 export function MonthView({
   ym, setYm, settings, entries, recurring, onEditEntry, onEditRecurring,
@@ -93,6 +93,7 @@ export function MonthView({
                     {l.type === 'expense' && ` · ${names[l.paidBy]} zahlte · ${l.share1Pct === 50 ? '50/50' : `${l.share1Pct}/${100 - l.share1Pct}`}`}
                     {l.type === 'income' && ` · für ${names[l.paidBy]}`}
                     {l.umbau && !l.umbau.paid && ' · offen'}
+                    <TagList tags={l.tags} />
                   </span>
                 </span>
                 <span class={l.type === 'income' ? 'amt pos' : 'amt'}>{l.type === 'income' ? '+' : '−'}{money(l.amountCents)}</span>

@@ -3,13 +3,15 @@ import { learnedCategories, newEntry, todayISO } from '../defaults';
 import { formatDate } from '../logic/dates';
 import { parseQuickEntry } from '../logic/quick';
 import type { Entry, Settings } from '../logic/types';
-import { saveEntry, uid } from '../store';
-import { money } from './ui';
+import { saveEntry, saveSettings, uid } from '../store';
+import { normalizeTags } from '../logic/tags';
+import { money, TagInput, TagList } from './ui';
 
 export function QuickView({
-  settings, entries, onEditEntry, onNew,
+  settings, entries, allTags, onEditEntry, onNew,
 }: {
   settings: Settings;
+  allTags: string[];
   entries: Entry[];
   onEditEntry: (e: Entry) => void;
   onNew: () => void;
@@ -25,6 +27,7 @@ export function QuickView({
     return newEntry(settings, {
       id: uid(), date: parsed.date, description: parsed.description, category: parsed.category, amountCents: parsed.amountCents,
       type: parsed.type, share1Pct: parsed.share1Pct, paidBy: parsed.paidBy,
+      tags: normalizeTags([...settings.activeTags, ...parsed.tags]).length ? normalizeTags([...settings.activeTags, ...parsed.tags]) : undefined,
     });
   };
 
@@ -62,6 +65,7 @@ export function QuickView({
                   {parsed.share1Pct === 50 ? '50/50' : parsed.share1Pct === 100 ? `nur ${names[0]}` : parsed.share1Pct === 0 ? `nur ${names[1]}` : `${parsed.share1Pct}/${100 - parsed.share1Pct}`}
                 </span>
               )}
+              {normalizeTags([...settings.activeTags, ...parsed.tags]).map((t) => <span class="chip ok">#{t}</span>)}
               <span class={`chip ${parsed.recognized.payer ? 'ok' : ''}`}>{parsed.type === 'income' ? 'für' : 'zahlte'} {names[parsed.paidBy]}</span>
             </div>
             <div class="actions">
@@ -72,6 +76,12 @@ export function QuickView({
         )}
         {saved && <div class="toast" role="status">{saved}</div>}
         <p class="hint">Erkennt Betrag (1.234,50), Datum (heute, gestern, Montag, 03.10.), Aufteilung (halbe-halbe, nur ich, nur {names[1]}, 70 % ich) und wer bezahlt hat („{names[1]} hat bezahlt“). Alles lokal, ohne KI.</p>
+      </div>
+
+      <div class="card">
+        <div class="lbl">Aktive Tags für neue Buchungen</div>
+        <TagInput value={settings.activeTags} onChange={(activeTags) => saveSettings({ activeTags })} suggestions={allTags} />
+        <p class="hint">Alles, was du jetzt einträgst, bekommt diese Tags automatisch – praktisch im Urlaub. Danach einfach entfernen. In der Schnelleingabe geht auch #Tag.</p>
       </div>
 
       <button class="wide" onClick={onNew}>＋ Manuell eintragen</button>
@@ -85,7 +95,7 @@ export function QuickView({
               <button class="item" onClick={() => onEditEntry(e)}>
                 <span class="main">
                   <span class="title">{e.description || e.umbau?.trade || '–'}</span>
-                  <span class="sub">{formatDate(e.date)} · {e.category} · {names[e.paidBy]}</span>
+                  <span class="sub">{formatDate(e.date)} · {e.category} · {names[e.paidBy]}<TagList tags={e.tags} /></span>
                 </span>
                 <span class={e.type === 'income' ? 'amt pos' : 'amt'}>{e.type === 'income' ? '+' : '−'}{money(e.amountCents)}</span>
               </button>

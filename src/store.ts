@@ -68,6 +68,13 @@ export const saveEntries = (es: Entry[]) =>
     await db.putMany('entries', es);
     set({ entries: [...state.entries, ...es] });
   });
+/** Mehrere vorhandene Buchungen ersetzen (z. B. Tag umbenennen). */
+export const upsertEntries = (es: Entry[]) =>
+  guard(async () => {
+    const byId = new Map(es.map((e) => [e.id, e]));
+    set({ entries: state.entries.map((e) => byId.get(e.id) ?? e) });
+    await db.putMany('entries', es);
+  });
 export const deleteEntry = (id: string) =>
   guard(async () => {
     set({ entries: state.entries.filter((x) => x.id !== id) });

@@ -3,7 +3,7 @@ import { centsToInput, formatMoney, parseMoney, splitCents } from '../logic/mone
 import { isValidISO, isValidYM } from '../logic/dates';
 import { monthlyCents } from '../logic/calc';
 import type { Entry, Recurring, Rhythm, Settings } from '../logic/types';
-import { Field, Modal, Seg } from './ui';
+import { Field, Modal, Seg, TagInput } from './ui';
 
 function SharePicker({ pct, onChange, names }: { pct: number; onChange: (n: number) => void; names: [string, string] }) {
   const preset = pct === 50 ? 'half' : pct === 100 ? 'p1' : pct === 0 ? 'p2' : 'custom';
@@ -30,10 +30,11 @@ function SharePicker({ pct, onChange, names }: { pct: number; onChange: (n: numb
 }
 
 export function EntryForm({
-  initial, settings, umbauMode, onSave, onDelete, onClose,
+  initial, settings, allTags, umbauMode, onSave, onDelete, onClose,
 }: {
   initial: Entry;
   settings: Settings;
+  allTags: string[];
   umbauMode?: boolean;
   onSave: (e: Entry) => void;
   onDelete?: () => void;
@@ -109,6 +110,11 @@ export function EntryForm({
             <div class="hint">Einnahmen werden nie in den Ausgleich eingerechnet.</div>
           </>
         )}
+        <div class="field">
+          <span class="lbl">Tags (optional)</span>
+          <TagInput value={e.tags ?? []} onChange={(tags) => patch({ tags: tags.length ? tags : undefined })} suggestions={allTags} />
+          <span class="hint">z. B. Urlaub, Geburtstag, Frankreich – später filter- und auswertbar.</span>
+        </div>
         <Field label="Notiz (optional)">
           <input value={e.note ?? ''} onInput={(ev) => patch({ note: ev.currentTarget.value || undefined })} />
         </Field>

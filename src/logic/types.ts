@@ -28,6 +28,8 @@ export interface Entry {
   paidBy: PersonIdx;
   umbau?: UmbauInfo;
   note?: string;
+  /** Freie Schlagwörter, z. B. "Urlaub Frankreich" oder "Geburtstag" */
+  tags?: string[];
 }
 
 export interface Recurring {
@@ -71,6 +73,8 @@ export interface Settings {
   /** Manuelle Schätzung variabler Ausgaben pro Monat für die Planung; null = Durchschnitt. */
   variableEstimateCents: number | null;
   loan: LoanSettings;
+  /** Tags, die neue Buchungen automatisch bekommen (z. B. während eines Urlaubs) */
+  activeTags: string[];
   /** Begriffe (z. B. Name des Partners), deren Kontoauszugszeilen beim Import als Ausgleich/Umbuchung gelten und abgewählt werden */
   importIgnoreTerms: string[];
   lastBackupAt: string | null;
@@ -98,6 +102,7 @@ export interface Line {
   share1Pct: number;
   paidBy: PersonIdx;
   umbau?: UmbauInfo;
+  tags?: string[];
 }
 
 export interface Settlement {

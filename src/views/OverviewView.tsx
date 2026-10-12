@@ -1,0 +1,93 @@
+import { useState } from 'preact/hooks';
+import { monthLabel, ymOf } from '../logic/dates';
+import { buildOverview, defaultEndYM } from '../logic/overview';
+import type { Entry, Recurring, Settings } from '../logic/types';
+import { money, Seg } from './ui';
+
+type Range = 'all' | '3' | '6' | '12';
+
+export function OverviewView({ entries, recurring, settings }: { entries: Entry[]; recurring: Recurring[]; settings: Settings }) {
+  const [range, setRange] = useState<Range>('all');
+  const [includeUmbau, setIncludeUmbau] = useState(false);
+  const names = settings.names;
+  const now = ymOf(new Date());
+  const o = buildOverview(entries, recurring, { endYM: defaultEndYM(entries, now), months: range === 'all' ? 'all' : +range, includeUmbau });
+  const maxCat = Math.max(1, ...o.byCategory.map((c) => c.total));
+  const hasUmbau = entries.some((e) => e.umbau);
+
+  return (
+    <>
+      <div class="card">
+        <div class="lbl">Zeitraum</div>
+        <Seg value={range} onChange={setRange} options={[{ value: '3', label: '3 Mon.' }, { value: '6', label: '6 Mon.' }, { value: '12', label: '12 Mon.' }, { value: 'all', label: 'Alles' }]} />
+        {!o.empty && <p class="hint">Durchschnitt über {o.n} Monat{o.n === 1 ? '' : 'e'} ({monthLabel(o.startYM)} bis {monthLabel(o.endYM)}). Der laufende Monat zählt nur mit, wenn es noch keine älteren Buchungen gibt.</p>}
+        {hasUmbau && (
+          <label class="check"><input type="checkbox" checked={includeUmbau} onChange={(e) => setIncludeUmbau(e.currentTarget.checked)} /> Umbau-Rechnungen einrechnen</label>
+        )}
+      </div>
+
+      {o.empty ? (
+        <div class="card"><p class="muted">Im gewählten Zeitraum gibt es keine Daten. Wähle „Alles“ oder erfasse Buchungen.</p></div>
+      ) : (
+        <>
+          <div class="tiles">
+            <div class="tile"><span class="lbl">Einnahmen Ø/Monat</span><strong class="pos">{money(o.income.avg)}</strong></div>
+            <div class="tile"><span class="lbl">Fixkosten Ø/Monat</span><strong>{money(o.fixedExpense.avg)}</strong></div>
+            <div class="tile"><span class="lbl">Variable Ausgaben Ø/Monat</span><strong>{money(o.variableExpense.avg)}</strong></div>
+            <div class="tile"><span class="lbl">Übrig Ø/Monat</span><strong class={o.netAvg < 0 ? 'neg' : 'pos'}>{money(o.netAvg)}</strong></div>
+          </div>
+          {o.umbauTotal > 0 && !includeUmbau && <p class="hint" style="margin:-4px 2px 12px">Umbau im Zeitraum: {money(o.umbauTotal)} (nicht eingerechnet).</p>}
+
+          <div class="card">
+            <div class="lbl">Wofür geht das Geld drauf? (Ø pro Monat)</div>
+            <div class="legend"><span><i class="sw fix" /> fix</span><span><i class="sw var" /> variabel</span></div>
+            {o.byCategory.length === 0 && <p class="muted">Keine Ausgaben.</p>}
+            {o.byCategory.map((c) => (
+              <div class="bar-row wide-label">
+                <span>{c.category}</span>
+                <div class="bar two">
+                  <i class="fix" style={`width:${(c.fixedTotal / maxCat) * 100}%`} />
+                  <i class="var" style={`width:${(c.variableTotal / maxCat) * 100}%`} />
+                </div>
+                <span class="num">{money(c.avg)} <small class="muted">{o.expense.total ? Math.round((c.total / o.expense.total) * 100) : 0} %</small></span>
+              </div>
+            ))}
+            <p class="hint">Essen und Trinken findest du unter „Lebensmittel“ (Einkauf) und „Restaurant“, Freizeit unter „Freizeit“. Kategorien lassen sich unter „Mehr“ anpassen.</p>
+          </div>
+
+          <div class="card">
+            <div class="lbl">Fixkosten: wiederkehrend jeden Monat</div>
+            <table class="grid">
+              <tbody>
+                {o.fixedItems.filter((f) => f.type === 'expense').map((f) => (
+                  <tr><td>{f.label}<br /><small class="muted">{f.category}{f.activeMonths < o.n ? ` · nur ${f.activeMonths} von ${o.n} Monaten` : ''}</small></td><td>{money(f.monthly)}</td></tr>
+                ))}
+                <tr class="sum"><td>Summe pro Monat</td><td>{money(o.fixedItems.filter((f) => f.type === 'expense').reduce((a, f) => a + f.monthly, 0))}</td></tr>
+              </tbody>
+            </table>
+            {o.fixedItems.some((f) => f.type === 'income') && (
+              <>
+                <div class="lbl" style="margin-top:14px">Feste Einnahmen</div>
+                <table class="grid"><tbody>
+                  {o.fixedItems.filter((f) => f.type === 'income').map((f) => <tr><td>{f.label}</td><td class="pos">{money(f.monthly)}</td></tr>)}
+                </tbody></table>
+              </>
+            )}
+          </div>
+
+          <div class="card">
+            <div class="lbl">Pro Person (Ø pro Monat)</div>
+            <table class="grid">
+              <thead><tr><th></th><th>{names[0]}</th><th>{names[1]}</th></tr></thead>
+              <tbody>
+                <tr><td>Einnahmen</td><td class="pos">{money(o.perPerson.income[0])}</td><td class="pos">{money(o.perPerson.income[1])}</td></tr>
+                <tr><td>Ausgaben (Anteil)</td><td>{money(o.perPerson.expenseShare[0])}</td><td>{money(o.perPerson.expenseShare[1])}</td></tr>
+                <tr class="sum"><td>Übrig</td><td class={o.perPerson.netAvg[0] < 0 ? 'neg' : ''}>{money(o.perPerson.netAvg[0])}</td><td class={o.perPerson.netAvg[1] < 0 ? 'neg' : ''}>{money(o.perPerson.netAvg[1])}</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+    </>
+  );
+}

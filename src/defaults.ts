@@ -7,12 +7,13 @@ export const todayISO = () => toISO(new Date());
 export function newEntry(settings: Settings, patch: Partial<Entry> = {}): Entry {
   return {
     id: uid(), date: todayISO(), description: '', category: settings.categories.includes('Lebensmittel') ? 'Lebensmittel' : settings.categories[0] ?? 'Sonstiges',
-    amountCents: 0, type: 'expense', share1Pct: 50, paidBy: 0, ...patch,
+    amountCents: 0, type: 'expense', share1Pct: 50, paidBy: 0,
+    ...(settings.activeTags.length ? { tags: [...settings.activeTags] } : {}), ...patch,
   };
 }
 
 export function newUmbauEntry(settings: Settings): Entry {
-  return newEntry(settings, { category: 'Umbau', umbau: { trade: '', paid: true } });
+  return newEntry(settings, { category: 'Umbau', umbau: { trade: '', paid: true }, tags: undefined });
 }
 
 export function newRecurring(type: 'expense' | 'income' = 'expense'): Recurring {

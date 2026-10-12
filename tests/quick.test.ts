@@ -76,4 +76,12 @@ describe('Schnelleingabe', () => {
     expect(r.category).toBe('Sonstiges');
     expect(r.amountCents).toBeNull();
   });
+  it('Hashtags', () => {
+    const r = p('gestern 54,20 Billa #Urlaub #Frankreich-Reise halbe-halbe');
+    expect(r.tags).toEqual(['Urlaub', 'Frankreich Reise']);
+    expect(r.description).toBe('Billa');
+    expect(r.amountCents).toBe(5420);
+    expect(p('Billa 10 Euro hashtag Geburtstag').tags).toEqual(['Geburtstag']);
+    expect(p('Billa 10 Euro').tags).toEqual([]);
+  });
 });

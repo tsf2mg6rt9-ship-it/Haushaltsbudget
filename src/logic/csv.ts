@@ -17,7 +17,7 @@ export function entriesCSV(entries: Entry[], settings: Settings): string {
   const [n1, n2] = settings.names;
   const rows: (string | number)[][] = [[
     'Datum', 'Typ', 'Beschreibung', 'Kategorie', 'Betrag EUR', `Anteil ${n1} %`, `Anteil ${n1} EUR`, `Anteil ${n2} EUR`,
-    'Bezahlt von / Empfänger', 'Umbau-Gewerk', 'Rechnungsnr.', 'Umbau bezahlt', 'Notiz',
+    'Bezahlt von / Empfänger', 'Umbau-Gewerk', 'Rechnungsnr.', 'Umbau bezahlt', 'Notiz', 'Tags',
   ]];
   for (const e of [...entries].sort((a, b) => (a.date < b.date ? -1 : 1))) {
     const [s1, s2] = splitCents(e.amountCents, e.share1Pct);
@@ -26,7 +26,7 @@ export function entriesCSV(entries: Entry[], settings: Settings): string {
       e.type === 'expense' ? String(e.share1Pct).replace('.', ',') : '',
       e.type === 'expense' ? eurNum(s1) : '', e.type === 'expense' ? eurNum(s2) : '',
       settings.names[e.paidBy], e.umbau?.trade ?? '', e.umbau?.invoiceNo ?? '',
-      e.umbau ? (e.umbau.paid ? 'ja' : 'nein') : '', e.note ?? '',
+      e.umbau ? (e.umbau.paid ? 'ja' : 'nein') : '', e.note ?? '', (e.tags ?? []).join(', '),
     ]);
   }
   return toCSV(rows);

@@ -45,6 +45,7 @@ export function entryLine(e: Entry): Line {
     share1Pct: e.share1Pct,
     paidBy: e.paidBy,
     umbau: e.umbau,
+    tags: e.tags,
   };
 }
 

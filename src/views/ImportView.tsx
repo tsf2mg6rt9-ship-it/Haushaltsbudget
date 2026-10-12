@@ -5,7 +5,8 @@ import { formatDate } from '../logic/dates';
 import type { Entry, Recurring, Settings } from '../logic/types';
 import { readFileSmart } from '../files';
 import { saveEntries, saveSettings, uid } from '../store';
-import { Field, Modal, Seg, money } from './ui';
+import { normalizeTags, tagOverview } from '../logic/tags';
+import { Field, Modal, Seg, TagInput, money } from './ui';
 
 type Step = 'pick' | 'map' | 'review' | 'done';
 
@@ -21,6 +22,7 @@ export function ImportView({ settings, entries, recurring, onClose }: { settings
   const [cands, setCands] = useState<Candidate[]>([]);
   const [skipped, setSkipped] = useState(0);
   const [ignore, setIgnore] = useState(settings.importIgnoreTerms.join(', '));
+  const [tags, setTags] = useState<string[]>([]);
   const [err, setErr] = useState('');
   const [imported, setImported] = useState(0);
   const learned = useMemo(() => learnedCategories(entries), [entries]);
@@ -69,7 +71,7 @@ export function ImportView({ settings, entries, recurring, onClose }: { settings
   const doImport = async () => {
     const list: Entry[] = chosen.map((c) => ({
       id: uid(), date: c.date, description: c.description, category: c.category, amountCents: c.amountCents, type: c.type,
-      share1Pct: share, paidBy: owner, note: 'Import Kontoauszug',
+      share1Pct: share, paidBy: owner, note: 'Import Kontoauszug', ...(tags.length ? { tags: normalizeTags(tags) } : {}),
     }));
     await saveEntries(list);
     setImported(list.length); setStep('done');
@@ -112,6 +114,10 @@ export function ImportView({ settings, entries, recurring, onClose }: { settings
           <Seg value={share} onChange={setShare} options={[{ value: 50, label: '50/50' }, { value: 100, label: `nur ${names[0]}` }, { value: 0, label: `nur ${names[1]}` }]} />
           <div class="hint">Gilt für alle importierten Ausgaben; einzelne lassen sich danach im Monat ändern.</div>
 
+          <div class="field">
+            <span class="lbl">Tags für alle importierten Buchungen (optional)</span>
+            <TagInput value={tags} onChange={setTags} suggestions={tagOverview(entries).map((t) => t.tag)} />
+          </div>
           <Field label="Ausgleich/Umbuchungen überspringen (optional)" hint="Namen oder Begriffe, durch Komma getrennt – z. B. der Name deines Partners im Kontoauszug. Überweisungen von/an diese Personen sind dann nur Ausgleich und zählen weder als Einnahme noch als Ausgabe. Umbuchungen und Revolut erkennt die App selbst.">
             <input value={ignore} placeholder="z. B. Müller Anna" onInput={(e) => setIgnore(e.currentTarget.value)} />
           </Field>
