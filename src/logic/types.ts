@@ -99,6 +99,8 @@ export interface Settings {
   categoryRules: CategoryRule[];
   /** Eigene Kategoriefarben (Hex), Rest ergibt sich automatisch */
   categoryColors: Record<string, string>;
+  /** Auswertungsbeginn: Monate davor werden nicht mitgezählt (Buchungen bleiben erhalten); null = ab der ersten Buchung */
+  startMonth: YM | null;
   /** Monate, in denen der Ausgleich pauschal als erledigt gilt (Zahlen bleiben unverändert) */
   closedMonths: Record<YM, ClosedMonth>;
   /** Tags, die neue Buchungen automatisch bekommen (z. B. während eines Urlaubs) */

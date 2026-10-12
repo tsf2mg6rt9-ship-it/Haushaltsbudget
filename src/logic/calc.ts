@@ -63,6 +63,18 @@ export function computeSettlement(paid: [number, number], expenseShare: [number,
   return { from: null, to: null, amountCents: 0 };
 }
 
+/**
+ * Auswertungsbeginn: Buchungen vor `startMonth` zählen nicht, Fixposten gelten frühestens ab diesem Monat.
+ * Damit beginnen auch Durchschnitte und der Ausgleich dort bei null. Die Originaldaten bleiben unverändert.
+ */
+export function applyStart(entries: Entry[], recurring: Recurring[], startMonth: YM | null): { entries: Entry[]; recurring: Recurring[] } {
+  if (!startMonth) return { entries, recurring };
+  return {
+    entries: entries.filter((e) => ymOf(e.date) >= startMonth),
+    recurring: recurring.map((r) => (r.from && r.from >= startMonth ? r : { ...r, from: startMonth })),
+  };
+}
+
 /** Sicht auf den Monat: alle Posten, Posten einer Person (bezahlt/erhalten von ihr) oder die geteilten Ausgaben. */
 export type Who = 'all' | '0' | '1' | 'shared';
 

@@ -5,6 +5,7 @@ import type { Entry, Recurring, Settings } from '../logic/types';
 import { isIOS, isStandalone, readFileText, saveFile } from '../files';
 import { deleteEntries, replaceAll, saveSettings, upsertEntries } from '../store';
 import { importBatches } from '../logic/bulk';
+import { monthLabel, ymOf } from '../logic/dates';
 import { formatDate } from '../logic/dates';
 import { colorForCategory, PALETTE } from '../logic/colors';
 import { CatDot } from './ui';
@@ -87,6 +88,21 @@ export function SettingsView({ settings, entries, recurring }: { settings: Setti
           <textarea rows={8} value={cats} onInput={(e) => setCats(e.currentTarget.value)} />
         </label>
         <button class="primary" onClick={saveBasics}>Speichern</button>
+      </div>
+
+      <div class="card">
+        <div class="lbl">Auswertungsbeginn</div>
+        <p class="muted">Ab diesem Monat wird ausgewertet. Alles davor (Buchungen, Fixposten, Ausgleich, Durchschnitte) zählt nicht mit; der Ausgleich beginnt dort bei null. Deine Buchungen bleiben erhalten und lassen sich unter „Monat“ ▸ „Buchungen“ weiter ansehen.</p>
+        <label class="field">
+          <span class="lbl">Erster ausgewerteter Monat</span>
+          <input type="month" value={settings.startMonth ?? ''} onInput={(e) => saveSettings({ startMonth: e.currentTarget.value || null })} />
+        </label>
+        {settings.startMonth ? (
+          <p class="hint">
+            {(() => { const k = entries.filter((e) => ymOf(e.date) < settings.startMonth!).length; return `${k} ${k === 1 ? 'Buchung wird' : 'Buchungen werden'}`; })()} vor {monthLabel(settings.startMonth)} ignoriert.
+            {' '}<button class="link" onClick={() => saveSettings({ startMonth: null })}>Beginn entfernen</button>
+          </p>
+        ) : <p class="hint">Nicht festgelegt: Es zählt alles ab der ersten Buchung.</p>}
       </div>
 
       <div class="card">

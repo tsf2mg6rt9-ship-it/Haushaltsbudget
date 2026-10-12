@@ -19,7 +19,7 @@ export function OverviewView({ entries, recurring, settings, onEditEntry }: { en
   const allTags = tagOverview(entries);
   const names = settings.names;
   const now = ymOf(new Date());
-  const opts = { endYM: defaultEndYM(entries, now), months: range === 'all' ? ('all' as const) : +range, includeUmbau, excludeTags: excluded, person: who === 'all' ? null : (+who as 0 | 1) };
+  const opts = { endYM: defaultEndYM(entries, now), months: range === 'all' ? ('all' as const) : +range, includeUmbau, excludeTags: excluded, startMonth: settings.startMonth, person: who === 'all' ? null : (+who as 0 | 1) };
   const o = buildOverview(entries, recurring, opts);
   const detail = openCat ? categoryDetail(entries, recurring, o, openCat, opts) : null;
   const maxCat = Math.max(1, ...o.byCategory.map((c) => c.total));

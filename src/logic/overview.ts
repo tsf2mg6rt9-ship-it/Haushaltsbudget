@@ -12,6 +12,8 @@ export interface OverviewOptions {
   excludeTags?: string[];
   /** null/undefined = gemeinsam; sonst nur Einnahmen und Ausgabenanteile dieser Person */
   person?: PersonIdx | null;
+  /** Auswertungsbeginn: der Zeitraum beginnt nie davor und bei „Alles“ genau hier (statt bei der ersten Buchung) */
+  startMonth?: YM | null;
 }
 
 export interface CategoryRow {
@@ -66,8 +68,11 @@ export function buildOverview(allEntries: Entry[], recurring: Recurring[], opts:
   const ex = (opts.excludeTags ?? []).map((t) => t.toLowerCase());
   const entries = ex.length ? allEntries.filter((e) => !(e.tags ?? []).some((t) => ex.includes(t.toLowerCase()))) : allEntries;
   const firstEntry = entries.length ? entries.map((e) => ymOf(e.date)).sort()[0] : null;
-  let start = opts.months === 'all' ? firstEntry ?? endYM : addMonths(endYM, -(opts.months - 1));
-  if (firstEntry && monthDiff(start, firstEntry) > 0) start = firstEntry;
+  const floor = opts.startMonth ?? null;
+  let start = opts.months === 'all' ? floor ?? firstEntry ?? endYM : addMonths(endYM, -(opts.months - 1));
+  if (floor) {
+    if (monthDiff(start, floor) > 0) start = floor;
+  } else if (firstEntry && monthDiff(start, firstEntry) > 0) start = firstEntry;
   const n = Math.max(0, monthDiff(start, endYM) + 1);
 
   const empty: Overview = {

@@ -65,6 +65,9 @@ export function MonthView({
         <button onClick={() => setYm(addMonths(ym, 1))} aria-label="Nächster Monat">›</button>
       </div>
       <h1>{monthLabel(ym)}</h1>
+      {settings.startMonth && ym < settings.startMonth && (
+        <div class="banner" role="note"><span>Dieser Monat liegt vor dem Auswertungsbeginn ({monthLabel(settings.startMonth)}) und wird nicht mitgezählt. Der Beginn lässt sich unter „Mehr“ ändern.</span></div>
+      )}
       <Seg value={who} onChange={setWho} options={[{ value: 'all', label: 'Alle' }, { value: '0', label: names[0] }, { value: '1', label: names[1] }, { value: 'shared', label: 'Gemeinsam' }]} />
       <div style="height:12px" />
 

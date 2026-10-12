@@ -20,6 +20,7 @@ export const DEFAULT_SETTINGS: Settings = {
   importIgnoreTerms: [],
   categoryRules: [],
   categoryColors: {},
+  startMonth: null,
   closedMonths: {},
   activeTags: [],
   lastBackupAt: null,
@@ -135,6 +136,7 @@ export function parseBackup(text: string): ParseResult {
     loan: cleanLoan(s.loan),
     activeTags: Array.isArray(s.activeTags) ? normalizeTags(s.activeTags.filter((t): t is string => typeof t === 'string')) : [],
     categoryRules: cleanRules(s.categoryRules),
+    startMonth: typeof s.startMonth === 'string' && isValidYM(s.startMonth) ? s.startMonth : null,
     closedMonths: isObj(s.closedMonths)
       ? Object.fromEntries(Object.entries(s.closedMonths).flatMap(([ym, v]) => (isValidYM(ym) && isObj(v) && typeof v.balance1 === 'number' && Number.isFinite(v.balance1) ? [[ym, { balance1: Math.round(v.balance1) }]] : [])))
       : {},

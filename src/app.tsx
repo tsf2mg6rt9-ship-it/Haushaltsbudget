@@ -15,7 +15,7 @@ import { ListView } from './views/ListView';
 import { ColorsCtx, Seg } from './views/ui';
 import { tagOverview } from './logic/tags';
 import { findFlags } from './logic/review';
-import type { Who } from './logic/calc';
+import { applyStart, type Who } from './logic/calc';
 import { addRule, entriesToRecategorize } from './logic/rules';
 import { ReviewView } from './views/ReviewView';
 import { PlanView } from './views/PlanView';
@@ -57,7 +57,9 @@ export function App() {
   const editRec = (rec: Recurring) => setEditor({ kind: 'recurring', rec, isNew: !recurring.some((r) => r.id === rec.id) });
   const close = () => setEditor(null);
   const allTags = tagOverview(entries).map((t) => t.tag);
-  const flags = findFlags(entries, recurring, settings.importIgnoreTerms);
+  // Auswertungsbeginn: Berechnungen und Auswertungen sehen nur Daten ab diesem Monat
+  const scoped = applyStart(entries, recurring, settings.startMonth);
+  const flags = findFlags(scoped.entries, scoped.recurring, settings.importIgnoreTerms);
 
   return (
     <ColorsCtx.Provider value={settings.categoryColors}>
@@ -89,16 +91,16 @@ export function App() {
           <>
             <Seg value={monthMode} onChange={setMonthMode} options={[{ value: 'month', label: 'Monat' }, { value: 'overview', label: 'Überblick' }, { value: 'tags', label: 'Tags' }, { value: 'list', label: 'Buchungen' }]} />
             <div style="height:12px" />
-            {monthMode === 'month' && <MonthView ym={ym} setYm={setYm} settings={settings} entries={entries} recurring={recurring} onEditEntry={editEntry} onEditRecurring={editRec} onNewSettlement={editEntry} flags={flags} who={who} setWho={setWho} />}
-            {monthMode === 'overview' && <section><h1>Überblick</h1><OverviewView entries={entries} recurring={recurring} settings={settings} onEditEntry={editEntry} /></section>}
+            {monthMode === 'month' && <MonthView ym={ym} setYm={setYm} settings={settings} entries={scoped.entries} recurring={scoped.recurring} onEditEntry={editEntry} onEditRecurring={editRec} onNewSettlement={editEntry} flags={flags} who={who} setWho={setWho} />}
+            {monthMode === 'overview' && <section><h1>Überblick</h1><OverviewView entries={scoped.entries} recurring={scoped.recurring} settings={settings} onEditEntry={editEntry} /></section>}
             {monthMode === 'list' && <section><h1>Alle Buchungen</h1><ListView entries={entries} settings={settings} onEditEntry={editEntry} /></section>}
-            {monthMode === 'tags' && <section><h1>Tags</h1><TagsView entries={entries} settings={settings} onEditEntry={editEntry} /></section>}
+            {monthMode === 'tags' && <section><h1>Tags</h1><TagsView entries={scoped.entries} settings={settings} onEditEntry={editEntry} /></section>}
           </>
         )}
         {tab === 'add' && <QuickView settings={settings} entries={entries} allTags={allTags} onEditEntry={editEntry} onNew={() => editEntry(newEntry(settings))} />}
         {tab === 'fix' && <FixView recurring={recurring} settings={settings} onEdit={editRec} onNew={(t) => editRec(newRecurring(t))} />}
         {tab === 'umbau' && <UmbauView entries={entries} settings={settings} onEdit={editEntry} onNew={() => editEntry(newUmbauEntry(settings))} />}
-        {tab === 'plan' && <PlanView entries={entries} recurring={recurring} settings={settings} />}
+        {tab === 'plan' && <PlanView entries={scoped.entries} recurring={scoped.recurring} settings={settings} />}
         {tab === 'more' && <SettingsView settings={settings} entries={entries} recurring={recurring} />}
       </main>
 
@@ -118,7 +120,7 @@ export function App() {
         {[...new Set(entries.map((e) => e.umbau?.trade).filter(Boolean))].map((t) => <option value={t} />)}
       </datalist>
 
-      {reviewing && <ReviewView entries={entries} flags={flags} settings={settings} onEdit={editEntry} onClose={() => setReviewing(false)} />}
+      {reviewing && <ReviewView entries={scoped.entries} flags={flags} settings={settings} onEdit={editEntry} onClose={() => setReviewing(false)} />}
       {editor?.kind === 'entry' && (
         <EntryForm
           initial={editor.entry} settings={settings} allTags={allTags} entries={entries} umbauMode={!!editor.entry.umbau}
