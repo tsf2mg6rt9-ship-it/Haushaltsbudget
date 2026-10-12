@@ -28,7 +28,7 @@ describe('Prüfung bestehender Buchungen', () => {
     expect(m.has(c.id)).toBe(false);
   });
   it('Dubletten: erste bleibt unmarkiert', () => {
-    const a = e({ description: 'Billa' }), b = e({ description: 'billa' }), c = e({ description: 'Billa', date: '2026-03-11' });
+    const a = e({ id: 'a1', description: 'Billa' }), b = e({ id: 'b2', description: 'billa' }), c = e({ id: 'c3', description: 'Billa', date: '2026-03-11' });
     const m = findFlags([a, b, c], []);
     expect([a, b, c].filter((x) => m.has(x.id))).toHaveLength(1);
     expect(kinds(m, b.id)).toEqual(['dublette']);

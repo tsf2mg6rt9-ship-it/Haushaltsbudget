@@ -51,11 +51,15 @@ export function EntryForm({
   const isSettlement = e.type === 'settlement';
   const isExisting = initial.description.trim() !== '';
   const catTouched = useRef(false);
-  const [makeRule, setMakeRule] = useState(isExisting);
+  const [makeRuleChoice, setMakeRuleChoice] = useState<boolean | null>(null);
   const [termInput, setTermInput] = useState<string | null>(null);
   const term = (termInput ?? suggestMatchTerm(e.description)).trim();
-  const catChanged = !isUmbau && !isSettlement && e.category !== initial.category && e.description.trim() !== '' && term !== '';
-  const affected = catChanged ? entriesToRecategorize(entries.filter((x) => x.id !== e.id), [{ match: term, category: e.category }]).length : 0;
+  const ruleCapable = !isUmbau && !isSettlement && e.description.trim() !== '' && term !== '';
+  const catChanged = ruleCapable && e.category !== initial.category;
+  const affected = ruleCapable ? entriesToRecategorize(entries.filter((x) => x.id !== e.id), [{ match: term, category: e.category }]).length : 0;
+  // Angebot, wenn die Kategorie geändert wurde – oder wenn andere gleiche Buchungen eine andere Kategorie haben
+  const showRuleBox = catChanged || affected > 0;
+  const makeRule = makeRuleChoice ?? (catChanged && isExisting);
   const patch = (p: Partial<Entry>) => setE((x) => ({ ...x, ...p }));
   const cents = parseMoney(amount);
   const [s1, s2] = splitCents(cents ?? 0, e.share1Pct);
@@ -66,7 +70,7 @@ export function EntryForm({
     if (!isValidISO(e.date)) return setErr('Bitte ein gültiges Datum wählen.');
     const out: Entry = { ...e, amountCents: cents, description: e.description.trim() };
     if (!out.description && !out.umbau && !isSettlement) return setErr('Bitte eine Beschreibung eingeben.');
-    onSave(out, catChanged && makeRule ? { match: term, category: e.category } : undefined);
+    onSave(out, showRuleBox && makeRule ? { match: term, category: e.category } : undefined);
   };
 
   return (
@@ -117,14 +121,14 @@ export function EntryForm({
             </select>
           </Field>
         )}
-        {catChanged && (
+        {showRuleBox && (
           <div class="rulebox">
             <label class="check" style="margin-top:0">
-              <input type="checkbox" checked={makeRule} onChange={(ev) => setMakeRule(ev.currentTarget.checked)} />
+              <input type="checkbox" checked={makeRule} onChange={(ev) => setMakeRuleChoice(ev.currentTarget.checked)} />
               Immer {e.category}, wenn die Beschreibung dies enthält:
             </label>
             <input value={termInput ?? term} onInput={(ev) => setTermInput(ev.currentTarget.value)} aria-label="Suchbegriff" />
-            <span class="hint">{makeRule ? `${affected} weitere bestehende Buchung${affected === 1 ? '' : 'en'} werden umkategorisiert, künftige Importe und Eingaben ebenfalls.` : 'Nur diese eine Buchung wird geändert.'}</span>
+            <span class="hint">{makeRule ? `${affected} weitere bestehende Buchung${affected === 1 ? ' wird' : 'en werden'} umkategorisiert, künftige Importe und Eingaben ebenfalls.` : affected > 0 ? `${affected} andere Buchung${affected === 1 ? ' hat' : 'en haben'} eine andere Kategorie. Häkchen setzen, um sie anzugleichen.` : 'Nur diese eine Buchung wird geändert.'}</span>
           </div>
         )}
         {isSettlement ? (

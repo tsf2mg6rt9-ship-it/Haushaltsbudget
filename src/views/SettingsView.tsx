@@ -5,7 +5,7 @@ import type { Entry, Recurring, Settings } from '../logic/types';
 import { isIOS, isStandalone, readFileText, saveFile } from '../files';
 import { replaceAll, saveSettings, upsertEntries } from '../store';
 import { addRule, entriesToRecategorize } from '../logic/rules';
-import { hasNoData, loadDemo } from '../demo';
+import { hasNoData, IS_DEMO, loadDemo } from '../demo';
 import { ImportView } from './ImportView';
 
 const stamp = () => new Date().toISOString().slice(0, 10);
@@ -161,6 +161,14 @@ export function SettingsView({ settings, entries, recurring }: { settings: Setti
             : 'Tipp: Installiere die App über das Browser-Menü („App installieren“), damit der Browser die Daten nicht aufräumt.'}</li>
           <li>Offline-Nutzung ist nach dem ersten Laden möglich.</li>
         </ul>
+        <p class="hint">Version: {IS_DEMO ? 'Demo' : __APP_VERSION__}</p>
+        {!IS_DEMO && 'serviceWorker' in navigator && (
+          <button onClick={async () => {
+            try { await (await navigator.serviceWorker.getRegistration())?.update(); } catch { /* offline */ }
+            location.reload();
+          }}>Nach Update suchen</button>
+        )}
+        <div style="height:12px" />
         <button class="danger" onClick={wipe}>Alle Daten löschen</button>
       </div>
     </section>
