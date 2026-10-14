@@ -3,9 +3,9 @@ import { IS_DEMO } from './demo';
 import { newEntry, newRecurring, newUmbauEntry } from './defaults';
 import { isIOS, isStandalone } from './files';
 import { backupReminderNeeded } from './logic/backup';
-import { ymOf } from './logic/dates';
+import { monthLabel, ymOf } from './logic/dates';
 import type { Entry, Recurring } from './logic/types';
-import { deleteEntry, deleteRecurring, saveEntry, saveRecurring, saveSettings, upsertEntries, useStore } from './store';
+import { deleteEntries, deleteEntry, deleteRecurring, saveEntry, saveRecurring, saveSettings, uid, upsertEntries, useStore } from './store';
 import { FixView } from './views/FixView';
 import { EntryForm, RecurringForm } from './views/forms';
 import { MonthView } from './views/MonthView';
@@ -15,6 +15,8 @@ import { ListView } from './views/ListView';
 import { ColorsCtx, Seg } from './views/ui';
 import { tagOverview } from './logic/tags';
 import { findFlags } from './logic/review';
+import { suggestFix } from './logic/fixsuggest';
+import { isActive } from './logic/calc';
 import { applyStart, type Who } from './logic/calc';
 import { addRule, entriesToRecategorize } from './logic/rules';
 import { ReviewView } from './views/ReviewView';
@@ -24,7 +26,7 @@ import { SettingsView } from './views/SettingsView';
 import { UmbauView } from './views/UmbauView';
 
 type Tab = 'month' | 'add' | 'fix' | 'umbau' | 'plan' | 'more';
-type Editor = { kind: 'entry'; entry: Entry; isNew: boolean } | { kind: 'recurring'; rec: Recurring; isNew: boolean } | null;
+type Editor = { kind: 'entry'; entry: Entry; isNew: boolean } | { kind: 'recurring'; rec: Recurring; isNew: boolean; term?: string; note?: string } | null;
 
 const TABS: { id: Tab; label: string; icon: string }[] = [
   { id: 'month', label: 'Monat', icon: '▦' },
@@ -54,7 +56,21 @@ export function App() {
   const showInstall = !IS_DEMO && hasData && !settings.installHintDismissed && !isStandalone();
 
   const editEntry = (entry: Entry) => setEditor({ kind: 'entry', entry, isNew: !entries.some((e) => e.id === entry.id) });
-  const editRec = (rec: Recurring) => setEditor({ kind: 'recurring', rec, isNew: !recurring.some((r) => r.id === rec.id) });
+  const editRec = (rec: Recurring, extra?: { term?: string; note?: string }) =>
+    setEditor({ kind: 'recurring', rec, isNew: !recurring.some((r) => r.id === rec.id), ...extra });
+  /** Aus einer Buchung einen Fixposten machen: Vorschlag aus gleichen Buchungen (Rhythmus, Beginn, Abbuchungsmonat) */
+  const makeFixed = (entry: Entry, pool: Entry[] = entries) => {
+    if (entry.type === 'settlement') return;
+    const s = suggestFix(pool, entry);
+    const RH = { monthly: 'monatlich', quarterly: 'quartalsweise', yearly: 'jährlich' } as const;
+    editRec({
+      id: uid(), label: s.label, category: entry.category, type: entry.type, amountCents: entry.amountCents, rhythm: s.rhythm, dueMonth: s.dueMonth,
+      share1Pct: entry.share1Pct, paidBy: entry.paidBy, from: s.from,
+    }, {
+      term: s.label,
+      note: `Vorschlag aus ${s.matches.length} gleichen Buchung${s.matches.length === 1 ? '' : 'en'}: ${RH[s.rhythm]}, ab ${monthLabel(s.from)}. Bitte prüfen und ggf. anpassen.`,
+    });
+  };
   const close = () => setEditor(null);
   const allTags = tagOverview(entries).map((t) => t.tag);
   // Auswertungsbeginn: Berechnungen und Auswertungen sehen nur Daten ab diesem Monat
@@ -101,7 +117,7 @@ export function App() {
         {tab === 'fix' && <FixView recurring={recurring} settings={settings} onEdit={editRec} onNew={(t) => editRec(newRecurring(t))} />}
         {tab === 'umbau' && <UmbauView entries={entries} settings={settings} onEdit={editEntry} onNew={() => editEntry(newUmbauEntry(settings))} />}
         {tab === 'plan' && <PlanView entries={scoped.entries} recurring={scoped.recurring} settings={settings} />}
-        {tab === 'more' && <SettingsView settings={settings} entries={entries} recurring={recurring} />}
+        {tab === 'more' && <SettingsView settings={settings} entries={entries} recurring={recurring} onMakeFixed={makeFixed} />}
       </main>
 
       <nav class="tabbar" aria-label="Hauptnavigation">
@@ -123,7 +139,7 @@ export function App() {
       {reviewing && <ReviewView entries={scoped.entries} flags={flags} settings={settings} onEdit={editEntry} onClose={() => setReviewing(false)} />}
       {editor?.kind === 'entry' && (
         <EntryForm
-          initial={editor.entry} settings={settings} allTags={allTags} entries={entries} umbauMode={!!editor.entry.umbau}
+          initial={editor.entry} settings={settings} allTags={allTags} entries={entries} onMakeFixed={(e) => makeFixed(e)} umbauMode={!!editor.entry.umbau}
           onClose={close}
           onSave={async (e, rule) => {
             await saveEntry(e);
@@ -140,8 +156,19 @@ export function App() {
       )}
       {editor?.kind === 'recurring' && (
         <RecurringForm
-          initial={editor.rec} settings={settings} onClose={close}
-          onSave={async (r) => { await saveRecurring(r); close(); }}
+          initial={editor.rec} settings={settings} onClose={close} note={editor.note}
+          onSave={async (r) => {
+            await saveRecurring(r);
+            const term = editor.term?.toLowerCase();
+            close();
+            if (term) {
+              // Bestehende Buchungen mit diesem Namen würden jetzt doppelt zählen (Fixposten + Buchung)
+              const dup = entries.filter((x) => !x.umbau && x.type === r.type && x.description.toLowerCase().includes(term) && isActive(r, ymOf(x.date)));
+              if (dup.length > 0 && confirm(`„${r.label}“ ist jetzt ein Fixposten.\n\n${dup.length} bestehende Buchung${dup.length === 1 ? '' : 'en'} mit diesem Namen würde${dup.length === 1 ? '' : 'n'} doppelt zählen (Fixposten und Buchung).\n\nOK = diese Buchung${dup.length === 1 ? '' : 'en'} löschen\nAbbrechen = behalten (sie werden dann rot markiert)`)) {
+                await deleteEntries(dup.map((x) => x.id));
+              }
+            }
+          }}
           onDelete={editor.isNew ? undefined : async () => { await deleteRecurring(editor.rec.id); close(); }}
         />
       )}

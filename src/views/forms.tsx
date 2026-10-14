@@ -33,8 +33,10 @@ function SharePicker({ pct, onChange, names }: { pct: number; onChange: (n: numb
 }
 
 export function EntryForm({
-  initial, settings, allTags, entries, umbauMode, onSave, onDelete, onClose,
+  initial, settings, allTags, entries, umbauMode, onSave, onDelete, onClose, onMakeFixed,
 }: {
+  /** Aus dieser Buchung einen Fixposten machen (öffnet das Fixposten-Formular mit Vorschlag) */
+  onMakeFixed?: (e: Entry) => void;
   initial: Entry;
   settings: Settings;
   allTags: string[];
@@ -162,6 +164,12 @@ export function EntryForm({
         <Field label="Notiz (optional)">
           <input value={e.note ?? ''} onInput={(ev) => patch({ note: ev.currentTarget.value || undefined })} />
         </Field>
+        {onMakeFixed && !isUmbau && !isSettlement && e.description.trim() !== '' && (
+          <button type="button" class="wide" style="margin:12px 0 0" onClick={() => {
+            if (cents === null || cents <= 0) return setErr('Bitte zuerst einen gültigen Betrag eingeben.');
+            onMakeFixed({ ...e, amountCents: cents, description: e.description.trim() });
+          }}>↻ Als Fixposten übernehmen …</button>
+        )}
         {err && <div class="error" role="alert">{err}</div>}
         <div class="actions">
           {onDelete && <button type="button" class="danger" onClick={() => confirm('Diesen Eintrag löschen?') && onDelete()}>Löschen</button>}
@@ -175,8 +183,10 @@ export function EntryForm({
 }
 
 export function RecurringForm({
-  initial, settings, onSave, onDelete, onClose,
+  initial, settings, onSave, onDelete, onClose, note,
 }: {
+  /** Hinweis oben im Formular (z. B. woher der Vorschlag stammt) */
+  note?: string;
   initial: Recurring;
   settings: Settings;
   onSave: (r: Recurring) => void;
@@ -202,8 +212,9 @@ export function RecurringForm({
   };
 
   return (
-    <Modal title={initial.label ? 'Fixposten bearbeiten' : r.type === 'income' ? 'Neue feste Einnahme' : 'Neue Fixkost'} onClose={onClose}>
+    <Modal title={note ? 'Fixposten aus Buchung' : initial.label ? 'Fixposten bearbeiten' : r.type === 'income' ? 'Neue feste Einnahme' : 'Neue Fixkost'} onClose={onClose}>
       <form onSubmit={submit}>
+        {note && <div class="banner" role="note"><span>{note}</span></div>}
         <Seg value={r.type} onChange={(type) => patch({ type, pay14: type === 'income' ? r.pay14 : undefined })} options={[{ value: 'expense', label: 'Fixkost' }, { value: 'income', label: 'Feste Einnahme' }]} />
         <Field label="Bezeichnung">
           <input autocomplete="off" placeholder={r.type === 'income' ? 'z. B. Gehalt' : 'z. B. Miete'} value={r.label} onInput={(ev) => patch({ label: ev.currentTarget.value })} />

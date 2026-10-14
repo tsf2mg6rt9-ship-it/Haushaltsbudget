@@ -15,7 +15,7 @@ import { ImportView } from './ImportView';
 
 const stamp = () => new Date().toISOString().slice(0, 10);
 
-export function SettingsView({ settings, entries, recurring }: { settings: Settings; entries: Entry[]; recurring: Recurring[] }) {
+export function SettingsView({ settings, entries, recurring, onMakeFixed }: { settings: Settings; entries: Entry[]; recurring: Recurring[]; onMakeFixed: (e: Entry, pool: Entry[]) => void }) {
   const [n1, setN1] = useState(settings.names[0]);
   const [n2, setN2] = useState(settings.names[1]);
   const [cats, setCats] = useState(settings.categories.join('\n'));
@@ -74,7 +74,7 @@ export function SettingsView({ settings, entries, recurring }: { settings: Setti
   return (
     <section>
       <h1>Mehr</h1>
-      {importing && <ImportView settings={settings} entries={entries} recurring={recurring} onClose={() => setImporting(false)} />}
+      {importing && <ImportView settings={settings} entries={entries} recurring={recurring} onMakeFixed={onMakeFixed} onClose={() => setImporting(false)} />}
       {msg && <div class="toast" role="status">{msg}</div>}
 
       <div class="card">

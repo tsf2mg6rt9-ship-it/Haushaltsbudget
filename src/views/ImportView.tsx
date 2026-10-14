@@ -6,12 +6,13 @@ import type { Entry, Recurring, Settings } from '../logic/types';
 import { readFileSmart } from '../files';
 import { deleteEntries, saveEntries, saveSettings, uid, upsertEntries } from '../store';
 import { addRule, entriesToRecategorize, suggestMatchTerm } from '../logic/rules';
+import { suggestFix } from '../logic/fixsuggest';
 import { normalizeTags, tagOverview } from '../logic/tags';
 import { CatDot, Field, Modal, Seg, TagInput, money } from './ui';
 
 type Step = 'pick' | 'map' | 'review' | 'done';
 
-export function ImportView({ settings, entries, recurring, onClose }: { settings: Settings; entries: Entry[]; recurring: Recurring[]; onClose: () => void }) {
+export function ImportView({ settings, entries, recurring, onMakeFixed, onClose }: { settings: Settings; entries: Entry[]; recurring: Recurring[]; onMakeFixed?: (e: Entry, pool: Entry[]) => void; onClose: () => void }) {
   const names = settings.names;
   const [step, setStep] = useState<Step>('pick');
   const [fileName, setFileName] = useState('');
@@ -72,6 +73,18 @@ export function ImportView({ settings, entries, recurring, onClose }: { settings
   const patch = (i: number, p: Partial<Candidate>) => {
     setCands((cs) => cs.map((c, j) => (j === i ? { ...c, ...p } : c)));
     if (p.category !== undefined) { setTouched((t) => ({ ...t, [i]: true })); setRuleMsg(''); }
+  };
+  // Zeile als Entwurf einer Buchung (für den Fixposten-Vorschlag, noch nicht gespeichert)
+  const pseudo = (c: Candidate): Entry => ({ id: `c${c.row}`, date: c.date, description: c.description, category: c.category, amountCents: c.amountCents, type: c.type, share1Pct: share ?? 50, paidBy: owner });
+  const makeFixed = (i: number) => {
+    if (!onMakeFixed) return;
+    const c = cands[i];
+    const pool = [...entries, ...cands.map(pseudo)];
+    const s = suggestFix(pool, pseudo(c));
+    // Alle gleichen Zeilen dieses Imports abwählen: der Fixposten ersetzt sie
+    setCands((cs) => cs.map((x) => (s.matches.some((m) => m.id === `c${x.row}`) ? { ...x, selected: false, fixMatch: true, fixLabel: s.label } : x)));
+    setRuleMsg(`${s.matches.filter((m) => m.id.startsWith('c')).length} gleiche Zeile${s.matches.filter((m) => m.id.startsWith('c')).length === 1 ? '' : 'n'} dieses Imports wurden abgewählt, weil der Fixposten sie ersetzt.`);
+    onMakeFixed(pseudo(c), pool);
   };
   const makeRule = async (i: number) => {
     const c = cands[i];
@@ -199,6 +212,9 @@ export function ImportView({ settings, entries, recurring, onClose }: { settings
                     <select value={c.category} onChange={(e) => patch(i, { category: e.currentTarget.value })} aria-label="Kategorie">
                       {[...new Set([...settings.categories, c.category])].map((k) => <option>{k}</option>)}
                     </select>
+                  )}
+                  {onMakeFixed && !c.partner && !c.transfer && (
+                    <button class="link" onClick={() => makeFixed(i)}>↻ Als Fixposten übernehmen …</button>
                   )}
                   {touched[i] && !c.partner && (
                     <button class="link" onClick={() => makeRule(i)}>Immer „{suggestMatchTerm(c.description)}“ → {c.category}</button>
